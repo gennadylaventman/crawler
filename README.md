@@ -27,9 +27,7 @@ The system consists of several key components:
 ### Detailed Architecture Documentation
 
 - **[WorkerPool Architecture](worker_pool_architecture.md)** - Comprehensive documentation of the concurrent processing system
-- **[Implementation Plan](implementation_plan.md)** - Updated technical specifications and API documentation
 - **[Architecture Design](architecture_design.md)** - System architecture overview with updated flow diagrams
-- **[Performance Analysis](performance_analysis.md)** - Performance monitoring and optimization strategies
 
 ## Quick Start
 
@@ -66,14 +64,54 @@ pip install -r requirements.txt
 ```
 
 4. Set up PostgreSQL database:
+
+**Option A: Using Docker Compose (Recommended for Development)**
 ```bash
-# Create database and user
+# Start PostgreSQL database in a container
+docker-compose -f docker-compose.debug.yml up -d postgres
+
+# Check if the database is running
+docker-compose -f docker-compose.debug.yml ps
+
+# View database logs (optional)
+docker-compose -f docker-compose.debug.yml logs postgres
+```
+
+The Docker Compose setup provides:
+- PostgreSQL 15 with Alpine Linux
+- Pre-configured database (`webcrawler`) and user (`crawler`)
+- Data persistence with named volumes
+- Health checks for reliable startup
+- Default password: `crawler_password`
+
+**Managing the Docker Database:**
+```bash
+# Stop the database container
+docker-compose -f docker-compose.debug.yml down
+
+# Stop and remove all data (WARNING: destroys all data)
+docker-compose -f docker-compose.debug.yml down -v
+
+# Restart the database
+docker-compose -f docker-compose.debug.yml restart postgres
+
+# Access the database directly
+docker-compose -f docker-compose.debug.yml exec postgres psql -U crawler -d webcrawler
+```
+
+**Option B: Manual PostgreSQL Installation**
+```bash
+# Create database and user manually
 createdb webcrawler
 createuser crawler
 ```
 
 5. Configure database connection:
 ```bash
+# For Docker Compose setup (default password)
+export DB_PASSWORD=crawler_password
+
+# For manual setup (your custom password)
 export DB_PASSWORD=your_password
 ```
 
