@@ -1,0 +1,252 @@
+# Staging Environment Configuration
+# This configuration is for staging/testing environment - production-like but with relaxed settings
+
+# Database Configuration
+database:
+  host: ${DB_HOST:localhost}
+  port: ${DB_PORT:5432}
+  name: ${DB_NAME:webcrawler_staging}
+  user: ${DB_USER:crawler}
+  password: ${DB_PASSWORD}
+  pool_size: 10
+  max_overflow: 15
+  echo: false
+  
+  # Connection settings
+  connect_timeout: 10
+  command_timeout: 30
+  server_settings:
+    application_name: "webcrawler_staging"
+
+# Crawler Configuration
+crawler:
+  # Worker settings - moderate for staging
+  max_workers: 5
+  max_depth: 3
+  max_pages_per_domain: 1000
+  max_total_pages: 10000
+  
+  # Request settings
+  delay_between_requests: 1.5
+  request_timeout: 30
+  max_retries: 3
+  retry_delay: 3.0
+  
+  # User agent
+  user_agent: "WebCrawler/1.0 (Staging)"
+  
+  # Content filtering
+  allowed_content_types:
+    - "text/html"
+    - "application/xhtml+xml"
+    - "text/plain"
+  
+  # URL filtering
+  blocked_extensions:
+    - ".pdf"
+    - ".doc"
+    - ".docx"
+    - ".jpg"
+    - ".jpeg"
+    - ".png"
+    - ".gif"
+    - ".mp3"
+    - ".mp4"
+    - ".zip"
+    - ".exe"
+  
+  # Domain settings
+  respect_robots_txt: true
+  robots_cache_ttl: 3600  # 1 hour
+  
+  # Queue settings
+  url_queue_size: 50000
+  enable_bloom_filter: true
+
+# Storage Configuration
+storage:
+  # Data directories
+  data_dir: "/var/lib/webcrawler-staging/data"
+  reports_dir: "/var/lib/webcrawler-staging/reports"
+  profiles_dir: "/var/lib/webcrawler-staging/profiles"
+  
+  # File formats
+  export_formats:
+    - "json"
+    - "csv"
+    - "html"
+  
+  # Compression
+  compress_data: true
+  compression_level: 4
+
+# Logging Configuration
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s"
+  
+  # File logging
+  file:
+    enabled: true
+    path: "/var/log/webcrawler/crawler_staging.log"
+    max_size: "50MB"
+    backup_count: 5
+    rotation: "time"
+  
+  # Console logging
+  console:
+    enabled: true
+    level: INFO
+  
+  # JSON logging for structured logs
+  json_logging: true
+  
+  # Logger levels for specific modules
+  loggers:
+    crawler.core: INFO
+    crawler.content: INFO
+    crawler.url_management: INFO
+    crawler.monitoring: INFO
+    crawler.reporting: INFO
+    aiohttp: WARNING
+    asyncpg: WARNING
+
+# Monitoring Configuration
+monitoring:
+  enabled: true
+  
+  # Metrics collection
+  metrics:
+    enabled: true
+    port: 8001
+    host: "0.0.0.0"
+    endpoint: "/metrics"
+  
+  # Performance profiling
+  profiling:
+    enabled: true
+    sample_rate: 0.05  # 5% of requests
+    output_dir: "/var/lib/webcrawler-staging/profiles"
+  
+  # Health checks
+  health_check:
+    enabled: true
+    port: 8002
+    host: "0.0.0.0"
+    endpoint: "/health"
+  
+  # Resource monitoring
+  resources:
+    check_interval: 30  # seconds
+    memory_threshold: 0.8  # 80% of available memory
+    cpu_threshold: 0.8     # 80% CPU usage
+
+# Content Analysis Configuration
+content_analysis:
+  # Text processing
+  text_processing:
+    min_text_length: 50
+    max_text_length: 1000000
+    remove_navigation: true
+    clean_text: true
+  
+  # Word frequency analysis
+  word_analysis:
+    min_word_length: 2
+    max_word_length: 50
+    include_stopwords: false
+    top_words_limit: 150
+  
+  # Language detection
+  language_detection:
+    enabled: true
+    min_confidence: 0.8
+  
+  # Content quality scoring
+  quality_scoring:
+    enabled: true
+    min_quality_score: 0.4
+
+# URL Management Configuration
+url_management:
+  # Validation settings
+  validation:
+    max_url_length: 2048
+    max_path_segments: 20
+    max_query_params: 40
+  
+  # Canonicalization
+  canonicalization:
+    remove_fragments: true
+    remove_empty_params: true
+    sort_query_params: true
+    lowercase_scheme_host: true
+    remove_tracking_params: true
+  
+  # Rate limiting
+  rate_limiting:
+    default_delay: 1.5
+    domain_delays: {}
+    respect_crawl_delay: true
+
+# Reporting Configuration
+reporting:
+  # Report generation
+  generation:
+    auto_generate: true
+    formats: ["html", "json"]
+    include_charts: true
+    include_statistics: true
+  
+  # Data visualization
+  visualization:
+    chart_library: "plotly"
+    theme: "light"
+    max_data_points: 5000
+  
+  # Export settings
+  export:
+    compress_reports: true
+    include_raw_data: false
+
+# Security Configuration
+security:
+  # Request headers
+  headers:
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+    "Accept-Language": "en-US,en;q=0.5"
+    "Accept-Encoding": "gzip, deflate"
+    "DNT": "1"
+    "Connection": "keep-alive"
+    "Upgrade-Insecure-Requests": "1"
+  
+  # SSL/TLS settings
+  ssl:
+    verify_certificates: true
+    ssl_context: null
+  
+  # Proxy settings
+  proxy:
+    enabled: false
+    http_proxy: null
+    https_proxy: null
+
+# Staging-specific settings
+staging:
+  # Testing features
+  testing:
+    mock_external_services: false
+    test_data_enabled: true
+    performance_testing: true
+  
+  # Integration testing
+  integration:
+    external_apis: true
+    database_testing: true
+    end_to_end_testing: true
+  
+  # Load testing
+  load_testing:
+    enabled: true
+    max_concurrent_users: 50
+    test_duration: 300  # 5 minutes

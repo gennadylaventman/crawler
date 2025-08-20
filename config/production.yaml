@@ -1,0 +1,384 @@
+# Production Environment Configuration
+# This configuration is optimized for production deployment with performance and reliability
+
+# Database Configuration
+database:
+  host: ${DB_HOST:localhost}
+  port: ${DB_PORT:5432}
+  name: ${DB_NAME:webcrawler_prod}
+  user: ${DB_USER:crawler}
+  password: ${DB_PASSWORD}
+  pool_size: 20
+  max_overflow: 30
+  echo: false
+  
+  # Connection settings
+  connect_timeout: 10
+  command_timeout: 60
+  server_settings:
+    application_name: "webcrawler_prod"
+    
+  # SSL settings for production
+  ssl: "require"
+  ssl_cert: ${SSL_CERT_PATH}
+  ssl_key: ${SSL_KEY_PATH}
+  ssl_ca: ${SSL_CA_PATH}
+
+# Crawler Configuration
+crawler:
+  # Worker settings - optimized for production load
+  max_workers: 10
+  max_depth: 5
+  max_pages_per_domain: 10000
+  max_total_pages: 100000
+  
+  # Request settings - conservative for production
+  delay_between_requests: 2.0
+  request_timeout: 45
+  max_retries: 5
+  retry_delay: 5.0
+  
+  # User agent
+  user_agent: "WebCrawler/1.0 (+https://yourcompany.com/crawler)"
+  
+  # Content filtering
+  allowed_content_types:
+    - "text/html"
+    - "application/xhtml+xml"
+    - "text/plain"
+  
+  # URL filtering
+  blocked_extensions:
+    - ".pdf"
+    - ".doc"
+    - ".docx"
+    - ".xls"
+    - ".xlsx"
+    - ".ppt"
+    - ".pptx"
+    - ".jpg"
+    - ".jpeg"
+    - ".png"
+    - ".gif"
+    - ".bmp"
+    - ".svg"
+    - ".webp"
+    - ".mp3"
+    - ".mp4"
+    - ".avi"
+    - ".mov"
+    - ".wmv"
+    - ".flv"
+    - ".zip"
+    - ".rar"
+    - ".tar"
+    - ".gz"
+    - ".7z"
+    - ".exe"
+    - ".msi"
+    - ".dmg"
+    - ".deb"
+    - ".rpm"
+  
+  # Domain settings
+  respect_robots_txt: true
+  robots_cache_ttl: 7200  # 2 hours
+  
+  # Queue settings
+  url_queue_size: 100000
+  enable_bloom_filter: true
+
+# Storage Configuration
+storage:
+  # Data directories
+  data_dir: "/var/lib/webcrawler/data"
+  reports_dir: "/var/lib/webcrawler/reports"
+  profiles_dir: "/var/lib/webcrawler/profiles"
+  
+  # File formats
+  export_formats:
+    - "json"
+    - "csv"
+    - "parquet"  # More efficient for large datasets
+  
+  # Compression for production
+  compress_data: true
+  compression_level: 6
+  
+  # Backup settings
+  backup:
+    enabled: true
+    interval: "daily"
+    retention_days: 30
+    backup_dir: "/var/backups/webcrawler"
+
+# Logging Configuration
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s"
+  
+  # File logging
+  file:
+    enabled: true
+    path: "/var/log/webcrawler/crawler.log"
+    max_size: "100MB"
+    backup_count: 10
+    rotation: "time"
+  
+  # Console logging (disabled in production)
+  console:
+    enabled: false
+    level: ERROR
+  
+  # JSON logging for structured logs
+  json_logging: true
+  
+  # Syslog integration
+  syslog:
+    enabled: true
+    facility: "local0"
+    address: "/dev/log"
+  
+  # Logger levels for specific modules
+  loggers:
+    crawler.core: INFO
+    crawler.content: INFO
+    crawler.url_management: INFO
+    crawler.monitoring: INFO
+    crawler.reporting: INFO
+    aiohttp: WARNING
+    asyncpg: WARNING
+    urllib3: WARNING
+
+# Monitoring Configuration
+monitoring:
+  enabled: true
+  
+  # Metrics collection
+  metrics:
+    enabled: true
+    port: 8001
+    host: "0.0.0.0"
+    endpoint: "/metrics"
+    
+    # Prometheus integration
+    prometheus:
+      enabled: true
+      job_name: "webcrawler"
+      scrape_interval: "15s"
+  
+  # Performance profiling (limited in production)
+  profiling:
+    enabled: true
+    sample_rate: 0.01  # 1% of requests
+    output_dir: "/var/lib/webcrawler/profiles"
+    max_profile_size: "50MB"
+  
+  # Health checks
+  health_check:
+    enabled: true
+    port: 8002
+    host: "0.0.0.0"
+    endpoint: "/health"
+    timeout: 30
+  
+  # Resource monitoring
+  resources:
+    check_interval: 60  # seconds
+    memory_threshold: 0.85  # 85% of available memory
+    cpu_threshold: 0.90     # 90% CPU usage
+    disk_threshold: 0.90    # 90% disk usage
+    
+    # Alerts
+    alerts:
+      enabled: true
+      email_recipients:
+        - "ops@yourcompany.com"
+        - "dev@yourcompany.com"
+      webhook_url: ${ALERT_WEBHOOK_URL}
+
+# Content Analysis Configuration
+content_analysis:
+  # Text processing
+  text_processing:
+    min_text_length: 50
+    max_text_length: 5000000  # 5MB
+    remove_navigation: true
+    clean_text: true
+  
+  # Word frequency analysis
+  word_analysis:
+    min_word_length: 2
+    max_word_length: 50
+    include_stopwords: false
+    top_words_limit: 200
+  
+  # Language detection
+  language_detection:
+    enabled: true
+    min_confidence: 0.9
+    cache_results: true
+  
+  # Content quality scoring
+  quality_scoring:
+    enabled: true
+    min_quality_score: 0.5
+    
+  # Batch processing for performance
+  batch_processing:
+    enabled: true
+    batch_size: 100
+    max_batch_wait: 30  # seconds
+
+# URL Management Configuration
+url_management:
+  # Validation settings
+  validation:
+    max_url_length: 2048
+    max_path_segments: 15
+    max_query_params: 30
+  
+  # Canonicalization
+  canonicalization:
+    remove_fragments: true
+    remove_empty_params: true
+    sort_query_params: true
+    lowercase_scheme_host: true
+    remove_tracking_params: true
+  
+  # Rate limiting
+  rate_limiting:
+    default_delay: 2.0
+    domain_delays:
+      "example.com": 5.0
+      "slow-site.com": 10.0
+    respect_crawl_delay: true
+    max_crawl_delay: 30.0
+
+# Reporting Configuration
+reporting:
+  # Report generation
+  generation:
+    auto_generate: true
+    schedule: "0 2 * * *"  # Daily at 2 AM
+    formats: ["html", "json", "pdf"]
+    include_charts: true
+    include_statistics: true
+  
+  # Data visualization
+  visualization:
+    chart_library: "plotly"
+    theme: "light"
+    max_data_points: 10000
+    cache_charts: true
+  
+  # Export settings
+  export:
+    compress_reports: true
+    include_raw_data: false  # Exclude raw data in production
+    retention_days: 90
+
+# Security Configuration
+security:
+  # Request headers
+  headers:
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+    "Accept-Language": "en-US,en;q=0.5"
+    "Accept-Encoding": "gzip, deflate, br"
+    "DNT": "1"
+    "Connection": "keep-alive"
+    "Upgrade-Insecure-Requests": "1"
+    "Sec-Fetch-Dest": "document"
+    "Sec-Fetch-Mode": "navigate"
+    "Sec-Fetch-Site": "none"
+  
+  # SSL/TLS settings
+  ssl:
+    verify_certificates: true
+    ssl_context: "default"
+    min_tls_version: "1.2"
+  
+  # Proxy settings
+  proxy:
+    enabled: ${PROXY_ENABLED:false}
+    http_proxy: ${HTTP_PROXY}
+    https_proxy: ${HTTPS_PROXY}
+    no_proxy: ${NO_PROXY}
+  
+  # Rate limiting and DDoS protection
+  rate_limiting:
+    requests_per_minute: 60
+    burst_limit: 10
+    
+  # IP filtering
+  ip_filtering:
+    enabled: false
+    whitelist: []
+    blacklist: []
+
+# Performance Configuration
+performance:
+  # Connection pooling
+  connection_pool:
+    max_connections: 100
+    max_connections_per_host: 10
+    keepalive_timeout: 30
+    
+  # Caching
+  caching:
+    enabled: true
+    cache_size: "1GB"
+    ttl: 3600  # 1 hour
+    
+  # Memory management
+  memory:
+    max_memory_usage: "4GB"
+    gc_threshold: 0.8
+    
+  # Async settings
+  async_settings:
+    max_concurrent_requests: 50
+    semaphore_limit: 100
+
+# Production-specific settings
+production:
+  # Process management
+  process:
+    workers: 4
+    max_requests: 10000
+    max_requests_jitter: 1000
+    preload_app: true
+    
+  # Graceful shutdown
+  shutdown:
+    timeout: 30
+    force_timeout: 60
+    
+  # Monitoring integration
+  monitoring_integration:
+    datadog:
+      enabled: ${DATADOG_ENABLED:false}
+      api_key: ${DATADOG_API_KEY}
+      
+    newrelic:
+      enabled: ${NEWRELIC_ENABLED:false}
+      license_key: ${NEWRELIC_LICENSE_KEY}
+      
+    sentry:
+      enabled: ${SENTRY_ENABLED:false}
+      dsn: ${SENTRY_DSN}
+      environment: "production"
+      
+  # Load balancing
+  load_balancing:
+    enabled: false
+    strategy: "round_robin"  # or "least_connections"
+    health_check_interval: 30
+    
+  # Auto-scaling
+  auto_scaling:
+    enabled: false
+    min_workers: 2
+    max_workers: 20
+    cpu_threshold: 70
+    memory_threshold: 80

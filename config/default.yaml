@@ -1,0 +1,62 @@
+database:
+  host: localhost
+  port: 5432
+  database: webcrawler
+  username: crawler
+  password: crawler_password
+  pool_size: 20
+  max_overflow: 10
+  pool_timeout: 30
+
+crawler:
+  max_depth: 3
+  max_pages: 1000
+  concurrent_workers: 10
+  rate_limit_delay: 1.0
+  request_timeout: 30
+  max_retries: 3
+  user_agent: "WebCrawler/1.0 (+https://example.com/bot)"
+  max_connections: 100
+  max_connections_per_host: 20
+  dns_cache_ttl: 300
+  keepalive_timeout: 30
+
+content:
+  max_page_size: 10485760
+  allowed_content_types:
+    - "text/html"
+    - "application/xhtml+xml"
+    - "text/xml"
+    - "application/xml"
+  remove_scripts: true
+  remove_styles: true
+  min_text_length: 100
+  max_words_per_page: 50000
+  chunk_size: 8192
+  enable_language_detection: true
+  enable_readability_analysis: true
+
+monitoring:
+  enable_metrics: true
+  metrics_interval: 60
+  enable_profiling: false
+  log_level: "DEBUG"
+  slow_response_threshold: 5000.0
+  slow_processing_threshold: 2000.0
+  high_memory_threshold: 1073741824
+
+reporting:
+  generate_visualizations: true
+  export_formats:
+    - "json"
+    - "csv"
+    - "html"
+  top_words_limit: 100
+  include_performance_charts: true
+  include_error_analysis: true
+  include_content_analysis: true
+
+session_name: "debug_crawl"
+start_urls: []
+allowed_domains: null
+blocked_domains: null
