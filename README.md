@@ -77,7 +77,12 @@ createuser crawler
 export DB_PASSWORD=your_password
 ```
 
-6. Run database migrations:
+6. Set Python path:
+   ```bash
+   export PYTHONPATH=src
+   ```
+
+7. Run database migrations:
 ```bash
 python -m crawler.cli migrate
 ```
@@ -99,111 +104,370 @@ source venv/bin/activate  # Linux/macOS
 venv\Scripts\activate     # Windows
 ```
 
-1. **Start a crawl session**:
+#### 1. `crawl` - Start Web Crawling
+
+Start a web crawling session with specified URLs and parameters.
+
 ```bash
-python -m crawler.cli crawl -u https://example.com -d 2 -p 50 -s my_crawl
+python src/crawler/cli.py crawl [OPTIONS]
 ```
 
-2. **Check system status**:
+**Options:**
+- `--url, -u` (required, multiple): URLs to crawl
+- `--depth, -d` (default: 3): Maximum crawl depth
+- `--pages, -p` (default: 100): Maximum pages to crawl
+- `--workers, -w` (default: 10): Number of concurrent workers
+- `--session-name, -s` (default: 'cli_crawl'): Session name for identification
+- `--config, -c`: Custom configuration file path
+
+**Examples:**
 ```bash
-python -m crawler.cli status
+# Basic crawl
+python src/crawler/cli.py crawl -u https://example.com
+
+# Advanced crawl with multiple URLs
+python src/crawler/cli.py crawl \
+  -u https://example.com \
+  -u https://another-site.com \
+  -d 5 \
+  -p 500 \
+  -w 20 \
+  -s "my_crawl_session"
+
+# Using custom config
+python src/crawler/cli.py crawl \
+  -u https://example.com \
+  -c /path/to/custom/config.yaml
 ```
 
-3. **Analyze results**:
+#### 2. `analyze` - Analyze Crawl Results
+
+Analyze and display statistics for a completed crawl session.
+
 ```bash
-python -m crawler.cli analyze -s <session-id> -l 20
+python src/crawler/cli.py analyze [OPTIONS]
 ```
 
-## Configuration
+**Options:**
+- `--session-id, -s`: Session ID to analyze
+- `--limit, -l` (default: 20): Number of top words to show
 
-The system uses YAML configuration files with environment variable overrides:
+**Examples:**
+```bash
+# Analyze specific session
+python src/crawler/cli.py analyze -s "session-uuid-here"
 
-### Default Configuration (`config/default.yaml`)
+# Show top 50 words
+python src/crawler/cli.py analyze -s "session-uuid-here" -l 50
+```
 
+#### 3. `migrate` - Database Migrations
+
+Run database migrations or recreate the schema.
+
+```bash
+python src/crawler/cli.py migrate [OPTIONS]
+```
+
+**Options:**
+- `--recreate`: Recreate schema (destroys all data)
+
+**Examples:**
+```bash
+# Run migrations
+python src/crawler/cli.py migrate
+
+# Recreate schema (WARNING: destroys all data)
+python src/crawler/cli.py migrate --recreate
+```
+
+#### 4. `status` - System Status
+
+Show system status and configuration information.
+
+```bash
+python src/crawler/cli.py status
+```
+
+#### 5. `report` - Generate Reports
+
+Generate comprehensive reports for crawl sessions.
+
+```bash
+python src/crawler/cli.py report [OPTIONS]
+```
+
+**Options:**
+- `--session-id, -s` (required): Session ID to generate report for
+- `--format, -f`: Report format (html, json, csv, markdown, pdf)
+- `--output, -o`: Output file path (optional)
+
+**Examples:**
+```bash
+# Generate HTML report
+python src/crawler/cli.py report -s "session-uuid-here" -f html
+
+# Save to specific file
+python src/crawler/cli.py report \
+  -s "session-uuid-here" \
+  -f pdf \
+  -o "/path/to/report.pdf"
+```
+
+#### 6. `analytics` - Detailed Analytics
+
+Perform detailed analytics analysis on crawl sessions.
+
+```bash
+python src/crawler/cli.py analytics [OPTIONS]
+```
+
+**Options:**
+- `--session-id, -s` (required): Session ID to analyze
+- `--trends`: Include performance trend analysis
+- `--output, -o`: Output file path for detailed results (JSON)
+
+**Examples:**
+```bash
+# Basic analytics
+python src/crawler/cli.py analytics -s "session-uuid-here"
+
+# With trends and output file
+python src/crawler/cli.py analytics \
+  -s "session-uuid-here" \
+  --trends \
+  -o "analytics_results.json"
+```
+
+
+### Configuration File Structure
+
+The crawler uses a YAML configuration file with environment-specific sections. The default configuration is located at `config/default.yaml`.
+
+#### File Structure Overview
+
+```yaml
+# Multi-environment configuration file
+default:
+  # Base configuration used by all environments
+  database: { ... }
+  crawler: { ... }
+  content: { ... }
+  session_name: "debug_crawl"
+  start_urls: []
+  allowed_domains: null
+  blocked_domains: null
+
+development:
+  # Development-specific overrides and additional settings
+  database: { ... }
+  crawler: { ... }
+  content: { ... }
+  session_name: "development_crawl"
+  start_urls: []
+  allowed_domains: null
+  blocked_domains: null
+```
+
+#### Configuration Sections
+
+##### Database Configuration
 ```yaml
 database:
   host: localhost
   port: 5432
   database: webcrawler
   username: crawler
-  password: ${DB_PASSWORD}
+  password: ${DB_PASSWORD}  # Environment variable substitution
+  pool_size: 20
+  max_overflow: 10
+  pool_timeout: 30
+```
 
+##### Crawler Configuration
+```yaml
 crawler:
   max_depth: 3
   max_pages: 1000
   concurrent_workers: 10
   rate_limit_delay: 1.0
   request_timeout: 30
+  max_retries: 3
+  user_agent: "WebCrawler/1.0 (+https://example.com/bot)"
+  max_connections: 100
+  max_connections_per_host: 20
+  dns_cache_ttl: 300
+  keepalive_timeout: 30
+```
 
+##### Content Processing Configuration
+```yaml
 content:
   max_page_size: 10485760  # 10MB
+  allowed_content_types:
+    - "text/html"
+    - "application/xhtml+xml"
+    - "text/xml"
+    - "application/xml"
   remove_scripts: true
   remove_styles: true
   min_text_length: 100
-
-monitoring:
-  enable_metrics: true
-  metrics_interval: 60
-  log_level: INFO
+  max_words_per_page: 50000
+  chunk_size: 8192
 ```
 
-### Environment Variables
+#### Environment Variable Overrides
 
-- `DB_PASSWORD`: Database password
-- `DB_HOST`: Database host (default: localhost)
-- `DB_PORT`: Database port (default: 5432)
-- `CRAWLER_MAX_DEPTH`: Maximum crawl depth
-- `CRAWLER_MAX_PAGES`: Maximum pages to crawl
-- `CRAWLER_WORKERS`: Number of concurrent workers
-- `LOG_LEVEL`: Logging level (DEBUG, INFO, WARNING, ERROR)
+The following environment variables can override configuration settings:
+
+| Environment Variable | Configuration Path | Description |
+|---------------------|-------------------|-------------|
+| `DB_HOST` | `database.host` | Database host |
+| `DB_PORT` | `database.port` | Database port |
+| `DB_NAME` | `database.database` | Database name |
+| `DB_USER` | `database.username` | Database username |
+| `DB_PASSWORD` | `database.password` | Database password |
+| `CRAWLER_MAX_DEPTH` | `crawler.max_depth` | Maximum crawl depth |
+| `CRAWLER_MAX_PAGES` | `crawler.max_pages` | Maximum pages to crawl |
+| `CRAWLER_WORKERS` | `crawler.concurrent_workers` | Number of workers |
+| `CRAWLER_RATE_LIMIT` | `crawler.rate_limit_delay` | Rate limit delay |
+| `LOG_LEVEL` | `monitoring.log_level` | Logging level |
 
 ## CLI Commands
 
-### Crawl Command
+### 1. `crawl` - Start Web Crawling
+
+Start a web crawling session with specified URLs and parameters.
+
 ```bash
-# Make sure venv is activated first
-source venv/bin/activate
-
-python -m crawler.cli crawl [OPTIONS]
-
-Options:
-  -u, --url TEXT          URLs to crawl (multiple allowed) [required]
-  -d, --depth INTEGER     Maximum crawl depth [default: 3]
-  -p, --pages INTEGER     Maximum pages to crawl [default: 100]
-  -w, --workers INTEGER   Number of concurrent workers [default: 10]
-  -s, --session-name TEXT Session name [default: cli_crawl]
-  -c, --config TEXT       Configuration file path
+python src/crawler/cli.py crawl [OPTIONS]
 ```
 
-### Analyze Command
+**Options:**
+- `--url, -u` (required, multiple): URLs to crawl
+- `--depth, -d` (default: 3): Maximum crawl depth
+- `--pages, -p` (default: 100): Maximum pages to crawl
+- `--workers, -w` (default: 10): Number of concurrent workers
+- `--session-name, -s` (default: 'cli_crawl'): Session name for identification
+- `--config, -c`: Custom configuration file path
+
+**Examples:**
 ```bash
-# Make sure venv is activated first
-source venv/bin/activate
+# Basic crawl
+python src/crawler/cli.py crawl -u https://example.com
 
-python -m crawler.cli analyze [OPTIONS]
+# Advanced crawl with multiple URLs
+python src/crawler/cli.py crawl \
+  -u https://example.com \
+  -u https://another-site.com \
+  -d 5 \
+  -p 500 \
+  -w 20 \
+  -s "my_crawl_session"
 
-Options:
-  -s, --session-id TEXT   Session ID to analyze
-  -l, --limit INTEGER     Number of top words to show [default: 20]
+# Using custom config
+python src/crawler/cli.py crawl \
+  -u https://example.com \
+  -c /path/to/custom/config.yaml
 ```
 
-### Migrate Command
+### 2. `analyze` - Analyze Crawl Results
+
+Analyze and display statistics for a completed crawl session.
+
 ```bash
-# Make sure venv is activated first
-source venv/bin/activate
-
-python -m crawler.cli migrate [OPTIONS]
-
-Options:
-  --recreate              Recreate schema (destroys all data)
+python src/crawler/cli.py analyze [OPTIONS]
 ```
 
-### Status Command
-```bash
-# Make sure venv is activated first
-source venv/bin/activate
+**Options:**
+- `--session-id, -s`: Session ID to analyze
+- `--limit, -l` (default: 20): Number of top words to show
 
-python -m crawler.cli status
+**Examples:**
+```bash
+# Analyze specific session
+python src/crawler/cli.py analyze -s "session-uuid-here"
+
+# Show top 50 words
+python src/crawler/cli.py analyze -s "session-uuid-here" -l 50
+```
+
+### 3. `migrate` - Database Migrations
+
+Run database migrations or recreate the schema.
+
+```bash
+python src/crawler/cli.py migrate [OPTIONS]
+```
+
+**Options:**
+- `--recreate`: Recreate schema (destroys all data)
+
+**Examples:**
+```bash
+# Run migrations
+python src/crawler/cli.py migrate
+
+# Recreate schema (WARNING: destroys all data)
+python src/crawler/cli.py migrate --recreate
+```
+
+### 4. `status` - System Status
+
+Show system status and configuration information.
+
+```bash
+python src/crawler/cli.py status
+```
+
+### 5. `report` - Generate Reports
+
+Generate comprehensive reports for crawl sessions.
+
+```bash
+python src/crawler/cli.py report [OPTIONS]
+```
+
+**Options:**
+- `--session-id, -s` (required): Session ID to generate report for
+- `--format, -f`: Report format (html, json, csv, markdown, pdf)
+- `--output, -o`: Output file path (optional)
+
+**Examples:**
+```bash
+# Generate HTML report
+python src/crawler/cli.py report -s "session-uuid-here" -f html
+
+# Save to specific file
+python src/crawler/cli.py report \
+  -s "session-uuid-here" \
+  -f pdf \
+  -o "/path/to/report.pdf"
+```
+
+### 6. `analytics` - Detailed Analytics
+
+Perform detailed analytics analysis on crawl sessions.
+
+```bash
+python src/crawler/cli.py analytics [OPTIONS]
+```
+
+**Options:**
+- `--session-id, -s` (required): Session ID to analyze
+- `--trends`: Include performance trend analysis
+- `--output, -o`: Output file path for detailed results (JSON)
+
+**Examples:**
+```bash
+# Basic analytics
+python src/crawler/cli.py analytics -s "session-uuid-here"
+
+# With trends and output file
+python src/crawler/cli.py analytics \
+  -s "session-uuid-here" \
+  --trends \
+  -o "analytics_results.json"
 ```
 
 ## Database Schema
@@ -214,7 +478,6 @@ The system uses a comprehensive PostgreSQL schema with the following main tables
 - **pages**: Individual page data with comprehensive metrics
 - **word_frequencies**: Word frequency analysis results
 - **links**: Discovered links and relationships
-- **session_metrics_timeseries**: Time-series performance data
 - **error_events**: Error tracking and analysis
 
 ### Migration System
@@ -247,13 +510,6 @@ The system collects detailed performance metrics:
 - Error rates
 - Resource utilization
 
-### System-Level Metrics
-- CPU usage
-- Memory usage
-- Network I/O
-- Disk I/O
-- Active connections
-
 ## Content Analysis
 
 The system provides comprehensive content analysis:
@@ -261,13 +517,9 @@ The system provides comprehensive content analysis:
 ### Text Processing
 - HTML parsing and cleaning
 - Script and style removal
-- Text normalization
-- Language detection
-- Readability scoring
 
 ### Word Analysis
 - Word frequency counting
-- Stop word filtering
 - Word length analysis
 - Unique word tracking
 - Top words identification
@@ -332,13 +584,6 @@ crawler:
   max_pages: 10000
 ```
 
-### Hardware Recommendations
-
-- **CPU**: 4+ cores for concurrent processing
-- **RAM**: 8GB+ for large-scale operations
-- **Storage**: SSD for database performance
-- **Network**: High-bandwidth connection for concurrent requests
-
 ## Troubleshooting
 
 ### Common Issues
@@ -363,13 +608,6 @@ crawler:
    - Check Python path
    - Verify module structure
 
-### Debug Mode
-
-Enable debug logging:
-```bash
-export LOG_LEVEL=DEBUG
-python -m crawler.cli crawl -u https://example.com
-```
 
 ## Development
 
@@ -377,10 +615,12 @@ python -m crawler.cli crawl -u https://example.com
 ```
 crawler/
 ├── src/crawler/           # Main package
+│   ├── cli.py            # Command-line interface
 │   ├── core/             # Core crawler engine with WorkerPool
 │   │   ├── engine.py     # Main crawler engine
 │   │   ├── worker.py     # WorkerPool and CrawlerWorker classes
-│   │   └── session.py    # Crawl session management
+│   │   ├── session.py    # Crawl session management
+│   │   └── queue_factory.py  # Queue factory for URL management
 │   ├── url_management/   # URL queue and management
 │   │   ├── queue.py      # Priority-based URL queue with bloom filters
 │   │   ├── validator.py  # URL validation and normalization
@@ -390,49 +630,20 @@ crawler/
 │   │   ├── processor.py  # Text processing and cleaning
 │   │   └── analyzer.py   # Word frequency analysis
 │   ├── storage/          # Database and storage
+│   │   ├── database.py   # Database manager and operations
+│   │   ├── migrations.py # Database migration system
+│   │   └── persistent_queue.py  # Persistent queue implementation
 │   ├── monitoring/       # Metrics and performance profiling
-│   └── utils/            # Utilities and config
-├── config/               # Configuration files
-├── tests/                # Test suite
-├── worker_pool_architecture.md  # WorkerPool documentation
-└── docs/                 # Additional documentation
+│   │   ├── logger.py     # Logging configuration and utilities
+│   │   ├── metrics.py    # Metrics collection and reporting
+│   │   └── profiler.py   # Performance profiling system
+│   ├── reporting/        # Report generation and analytics
+│   │   ├── generator.py  # Report generation engine
+│   │   ├── analytics.py  # Advanced analytics and insights
+│   │   └── visualizer.py # Data visualization components
+│   └── utils/            # Utilities and configuration
+│       ├── config.py     # Configuration management
+│       ├── exceptions.py # Custom exception classes
+│       └── helpers.py    # Helper functions and utilities
+└── config/               # Configuration files
 ```
-
-### Key Implementation Notes
-
-- **URL Queue Storage**: Currently uses in-memory `asyncio.PriorityQueue` with bloom filter deduplication (not PostgreSQL as originally planned)
-- **WorkerPool Pattern**: Implements sophisticated concurrent processing with individual worker instances
-- **Performance Profiling**: Built-in profiling system with detailed timing metrics for all operations
-- **API Signatures**: Updated to match actual implementation (see `implementation_plan.md` for details)
-
-### Running Tests
-```bash
-pytest tests/
-```
-
-### Code Quality
-```bash
-black src/
-flake8 src/
-mypy src/
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Run code quality checks
-6. Submit a pull request
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Support
-
-For issues and questions:
-- Create an issue on GitHub
-- Check the troubleshooting section
-- Review the configuration documentation

@@ -133,36 +133,6 @@ except Exception as e:
     logger.error(f"Worker {self.worker_id} failed to process {url}: {e}")
 ```
 
-## Performance Statistics
-
-Both WorkerPool and individual workers collect detailed statistics:
-
-### Worker Statistics
-```python
-{
-    'worker_id': int,
-    'pages_processed': int,
-    'errors_encountered': int,
-    'runtime_seconds': float,
-    'pages_per_second': float,
-    'error_rate': float
-}
-```
-
-### Pool Statistics
-```python
-{
-    'pool_size': int,
-    'total_pages_processed': int,
-    'total_errors': int,
-    'average_pages_per_second': float,
-    'overall_error_rate': float,
-    'worker_stats': List[Dict],
-    'task_queue_size': int,
-    'result_queue_size': int
-}
-```
-
 ## Configuration
 
 WorkerPool configuration is handled through the main crawler configuration:
