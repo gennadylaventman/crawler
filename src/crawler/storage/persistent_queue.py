@@ -7,11 +7,10 @@ import asyncio
 import json
 import time
 import uuid
-from typing import Dict, List, Optional, Set, Any, Tuple, TYPE_CHECKING
-from dataclasses import asdict
+from typing import Dict, Optional, Any, TYPE_CHECKING
 from datetime import datetime, timedelta
 
-from crawler.url_management.queue import URLQueue, QueuedURL, BloomFilter
+from crawler.url_management.queue import URLQueue, QueuedURL
 from crawler.utils.exceptions import QueueError, DatabaseError
 
 if TYPE_CHECKING:

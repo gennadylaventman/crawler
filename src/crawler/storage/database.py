@@ -15,7 +15,6 @@ import asyncpg
 from crawler.utils.config import DatabaseConfig
 from crawler.utils.exceptions import DatabaseError
 from crawler.core.session import CrawlSession
-from crawler.monitoring.metrics import PageMetrics
 from crawler.storage.migrations import MigrationManager
 
 if TYPE_CHECKING:
@@ -821,3 +820,79 @@ class DatabaseManager:
                 
         except Exception as e:
             raise DatabaseError(f"Failed to get queue health metrics: {e}")
+    
+    # Analytics-specific methods
+    async def get_session_pages(self, session_id: str) -> List[Dict[str, Any]]:
+        """Get all pages for a session with analytics-relevant fields."""
+        try:
+            async with self.get_connection() as conn:
+                pages = await conn.fetch(
+                    """
+                    SELECT
+                        url, status_code, total_words as word_count, processing_successful,
+                        server_response_time as response_time, content_type, language,
+                        quality_score, readability_score
+                    FROM pages
+                    WHERE session_id = $1
+                    ORDER BY crawled_at
+                    """,
+                    uuid.UUID(session_id)
+                )
+                return [dict(page) for page in pages]
+        except Exception as e:
+            raise DatabaseError(f"Failed to get session pages: {e}")
+    
+    async def get_session_links(self, session_id: str) -> List[Dict[str, Any]]:
+        """Get all links for a session."""
+        try:
+            async with self.get_connection() as conn:
+                links = await conn.fetch(
+                    """
+                    SELECT target_url, is_internal
+                    FROM links
+                    WHERE session_id = $1
+                    ORDER BY discovered_at
+                    """,
+                    uuid.UUID(session_id)
+                )
+                return [dict(link) for link in links]
+        except Exception as e:
+            raise DatabaseError(f"Failed to get session links: {e}")
+    
+    async def get_session_metrics_simple(self, session_id: str) -> List[Dict[str, Any]]:
+        """Get simple performance metrics for a session."""
+        try:
+            async with self.get_connection() as conn:
+                metrics = await conn.fetch(
+                    """
+                    SELECT
+                        total_page_time as total_time,
+                        server_response_time,
+                        total_processing_time as processing_time
+                    FROM pages
+                    WHERE session_id = $1
+                        AND total_page_time IS NOT NULL
+                    ORDER BY crawled_at
+                    """,
+                    uuid.UUID(session_id)
+                )
+                return [dict(metric) for metric in metrics]
+        except Exception as e:
+            raise DatabaseError(f"Failed to get session metrics: {e}")
+    
+    async def get_session_errors(self, session_id: str) -> List[Dict[str, Any]]:
+        """Get all errors for a session."""
+        try:
+            async with self.get_connection() as conn:
+                errors = await conn.fetch(
+                    """
+                    SELECT error_type, error_message
+                    FROM error_events
+                    WHERE session_id = $1
+                    ORDER BY occurred_at
+                    """,
+                    uuid.UUID(session_id)
+                )
+                return [dict(error) for error in errors]
+        except Exception as e:
+            raise DatabaseError(f"Failed to get session errors: {e}")

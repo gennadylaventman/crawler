@@ -2,14 +2,11 @@
 Robots.txt compliance and sitemap discovery for the web crawler.
 """
 
-import asyncio
 import time
 from typing import Dict, List, Optional, Set, Tuple
 from urllib.parse import urljoin, urlparse
 from urllib.robotparser import RobotFileParser
 import aiohttp
-
-from crawler.utils.exceptions import RobotsError
 
 
 class RobotsChecker:

@@ -11,11 +11,10 @@ from dataclasses import dataclass, field
 from contextlib import asynccontextmanager
 
 import aiohttp
-from bs4 import BeautifulSoup
 
 from crawler.utils.config import CrawlConfig
 from crawler.utils.exceptions import CrawlerError, NetworkError, ContentError
-from crawler.monitoring.metrics import MetricsCollector, PageMetrics
+from crawler.monitoring.metrics import PageMetrics
 from crawler.content.processor import ContentProcessor
 from crawler.url_management.queue import URLQueue
 from crawler.url_management.robots import RobotsChecker, SitemapParser
@@ -61,7 +60,6 @@ class CrawlerEngine:
         self.semaphore: Optional[asyncio.Semaphore] = None
         self.visited_urls: Set[str] = set()
         self.url_queue: Optional[URLQueue] = None  # Will be initialized in start_crawl
-        self.metrics_collector: Optional[MetricsCollector] = None
         self.db_manager: Optional['DatabaseManager'] = None
         self.content_processor: Optional[ContentProcessor] = None
         self.crawl_session: Optional[CrawlSession] = None
@@ -126,7 +124,6 @@ class CrawlerEngine:
         # Initialize components
         from crawler.storage.database import DatabaseManager
         
-        self.metrics_collector = MetricsCollector()
         self.db_manager = DatabaseManager(self.config.database)
         self.content_processor = ContentProcessor(self.config.content)
         self.robots_checker = RobotsChecker(
@@ -152,7 +149,6 @@ class CrawlerEngine:
         self.worker_pool = WorkerPool(
             session=self.session,
             config=worker_config,
-            metrics_collector=self.metrics_collector,
             pool_size=self.config.crawler.concurrent_workers
         )
         
@@ -240,9 +236,6 @@ class CrawlerEngine:
         pending_tasks = 0
         
         print(f"🚀 Starting crawl loop with max_pages={self.config.crawler.max_pages}")
-        print(f"🔍 DEBUG: Initial queue size: {self.url_queue.size()}")
-        print(f"🔍 DEBUG: Initial visited URLs: {len(self.visited_urls)}")
-        print(f"🔍 DEBUG: Queue stats: {self.url_queue.get_stats()}")
         
         # Process URLs until queue is empty or limits reached
         loop_iteration = 0
@@ -257,20 +250,13 @@ class CrawlerEngine:
             # Detect stalled queue (no progress)
             if current_queue_size == last_queue_size and pending_tasks == 0:
                 stalled_iterations += 1
-                print(f"⚠️ DEBUG: Queue appears stalled - iteration {stalled_iterations}")
                 if stalled_iterations >= 5:
-                    print(f"🚨 DEBUG: HANG DETECTED - Queue stalled for {stalled_iterations} iterations")
-                    print(f"🚨 DEBUG: Queue size: {current_queue_size}, Pending tasks: {pending_tasks}")
-                    print(f"🚨 DEBUG: Queue stats: {self.url_queue.get_stats()}")
                     break
             else:
                 stalled_iterations = 0
             
             last_queue_size = current_queue_size
             
-            print(f"🔍 DEBUG: Main loop iteration {loop_iteration}")
-            print(f"🔍 DEBUG: Queue empty: {self.url_queue.empty()}, Should continue: {self._should_continue_crawling()}")
-            print(f"🔍 DEBUG: Queue size: {self.url_queue.size()}, Pending tasks: {pending_tasks}")
             
             # Submit tasks up to worker pool size to avoid blocking
             inner_loop_iteration = 0
@@ -279,8 +265,6 @@ class CrawlerEngine:
                    self._should_continue_crawling()):
                 
                 inner_loop_iteration += 1
-                print(f"🔍 DEBUG: Inner loop iteration {inner_loop_iteration}")
-                print(f"🔍 DEBUG: About to call get_with_rate_limit...")
                 
                 # Get URL from queue with proper timeout that accounts for rate limiting
                 # Timeout should be at least 2x the rate limit delay to allow for waiting
@@ -290,23 +274,18 @@ class CrawlerEngine:
                     timeout=queue_timeout
                 )
                 
-                print(f"🔍 DEBUG: get_with_rate_limit returned: {queued_url}")
                 
                 if not queued_url:
-                    print("🔍 DEBUG: No URL returned from queue, breaking inner loop")
                     break
                 
                 # Check robots.txt compliance
                 if not await self._check_robots_compliance(queued_url.url):
-                    print(f"🔍 DEBUG: Robots.txt check failed for: {queued_url.url}")
                     continue
                 
                 if not self._should_crawl_url(queued_url.url, queued_url.depth):
-                    print(f"🔍 DEBUG: _should_crawl_url returned False for: {queued_url.url}")
                     continue
                 
                 # Submit to worker pool
-                print(f"🔍 DEBUG: Submitting task to worker pool: {queued_url.url}")
                 await self.worker_pool.submit_task(
                     url=queued_url.url,
                     depth=queued_url.depth,
@@ -315,15 +294,12 @@ class CrawlerEngine:
                 )
                 submitted_tasks += 1
                 pending_tasks += 1
-                print(f"📤 Submitted task {submitted_tasks}: {queued_url.url}")
             
-            print(f"🔍 DEBUG: Finished inner loop, pending_tasks: {pending_tasks}")
             
             # Process available results (non-blocking)
             result_loop_iteration = 0
             while pending_tasks > 0:
                 result_loop_iteration += 1
-                print(f"🔍 DEBUG: Result processing loop iteration {result_loop_iteration}")
                 try:
                     result = await asyncio.wait_for(
                         self.worker_pool.get_result(),
@@ -332,22 +308,16 @@ class CrawlerEngine:
                     await self._handle_worker_result(result)
                     processed_results += 1
                     pending_tasks -= 1
-                    print(f"📥 Processed result {processed_results}: {result.get('url', 'unknown')}")
-                    print(f"🔍 DEBUG: Queue size after processing result: {self.url_queue.size()}")
                 except asyncio.TimeoutError:
-                    print("🔍 DEBUG: Timeout waiting for result, breaking result loop")
                     # No result ready yet, break and continue main loop
                     break
             
             # Small delay to prevent tight loop
             if pending_tasks >= self.config.crawler.concurrent_workers:
-                print("🔍 DEBUG: All workers busy, sleeping...")
                 await asyncio.sleep(0.1)
         
-        print(f"🔍 DEBUG: Exited main loop - Queue empty: {self.url_queue.empty()}, Should continue: {self._should_continue_crawling()}")
         
         # Process any remaining results
-        print(f"🔄 Processing {pending_tasks} remaining results...")
         while pending_tasks > 0:
             try:
                 result = await asyncio.wait_for(
@@ -357,14 +327,10 @@ class CrawlerEngine:
                 await self._handle_worker_result(result)
                 processed_results += 1
                 pending_tasks -= 1
-                print(f"📥 Final result {processed_results}: {result.get('url', 'unknown')}")
             except asyncio.TimeoutError:
-                print(f"⚠️ Timeout waiting for {pending_tasks} remaining results")
                 break
         
         print(f"✅ Crawl loop completed: submitted {submitted_tasks} tasks, processed {processed_results} results")
-        print(f"🔍 DEBUG: Final queue size: {self.url_queue.size()}")
-        print(f"🔍 DEBUG: Final visited URLs: {len(self.visited_urls)}")
     
     def _should_continue_crawling(self) -> bool:
         """Check if crawling should continue."""
@@ -380,11 +346,7 @@ class CrawlerEngine:
     async def _handle_worker_result(self, result: Dict[str, Any]) -> None:
         """Handle result from worker pool."""
         if not result:
-            print("🔍 DEBUG: _handle_worker_result received empty result")
             return
-        
-        print(f"🔍 DEBUG: Processing worker result for URL: {result.get('url', 'unknown')}")
-        print(f"🔍 DEBUG: Result success: {result.get('success', False)}")
         
         # Create QueuedURL object for queue status updates
         from crawler.url_management.queue import QueuedURL
@@ -406,13 +368,11 @@ class CrawlerEngine:
             try:
                 if result.get('success'):
                     await self.url_queue.mark_url_completed(queued_url)
-                    print(f"🔍 DEBUG: Marked URL as completed in queue: {url} (hash: {queued_url.url_hash})")
                 else:
                     error_message = result.get('error', 'Processing failed')
                     await self.url_queue.mark_url_failed(queued_url, error_message)
-                    print(f"🔍 DEBUG: Marked URL as failed in queue: {url} (hash: {queued_url.url_hash}) - {error_message}")
-            except Exception as e:
-                print(f"🔍 DEBUG: Error updating queue status: {e}")
+            except Exception:
+                pass
         
         # Store result in database for BOTH successful AND failed results FIRST
         page_id = None
@@ -476,7 +436,6 @@ class CrawlerEngine:
                 
                 # Store page result in database
                 page_id = await self.db_manager.store_page_result(crawl_result, result['session_id'])
-                print(f"🔍 DEBUG: Stored page result ({'failed' if error_message else 'successful'}) in database, page_id: {page_id}")
                 
                 # Store word frequencies if available (only for successful results)
                 if result.get('success') and isinstance(word_frequencies, dict) and word_frequencies:
@@ -485,18 +444,14 @@ class CrawlerEngine:
                         page_id,
                         word_frequencies
                     )
-                    print(f"🔍 DEBUG: Stored {len(word_frequencies)} word frequencies for page {page_id}")
-                elif result.get('success'):
-                    print(f"🔍 DEBUG: No word frequencies to store for page {page_id}")
                 
-            except Exception as e:
-                print(f"🔍 DEBUG: Error storing result in database: {e}")
+            except Exception:
+                pass
         
         # Store error events for failed results AFTER page is stored (so we have page_id)
         if not result.get('success') and self.db_manager and page_id:
             try:
                 error_message = result.get('error', 'Processing failed')
-                print(f"🔍 DEBUG: Storing error event for failed URL: {url} with page_id: {page_id}")
                 
                 await self.db_manager.store_error_event(
                     session_id=result['session_id'],
@@ -506,9 +461,8 @@ class CrawlerEngine:
                     operation_name='page_processing',
                     page_id=page_id  # Now we have the page_id!
                 )
-                print(f"🔍 DEBUG: Successfully stored error event for {url} with page_id: {page_id}")
-            except Exception as e:
-                print(f"🔍 DEBUG: Error storing error event: {e}")
+            except Exception:
+                pass
         
         # Update session statistics
         if self.crawl_session:
@@ -520,15 +474,10 @@ class CrawlerEngine:
                 
                 # Add discovered links to queue
                 links = result.get('links', [])
-                print(f"🔍 DEBUG: Found {len(links)} links in result")
                 if links:
-                    print(f"🔍 DEBUG: Sample links: {links[:3]}")  # Show first 3 links
                     await self._add_links_to_queue(links, result.get('depth', 0) + 1)
-                else:
-                    print("🔍 DEBUG: No links found in result")
             else:
                 self.crawl_session.pages_failed += 1
-                print(f"🔍 DEBUG: Worker result failed: {result.get('error', 'unknown error')}")
     
     async def _process_remaining_results(self) -> None:
         """Process any remaining results from worker pool."""
@@ -575,58 +524,40 @@ class CrawlerEngine:
     
     def _should_crawl_url(self, url: str, depth: int) -> bool:
         """Check if URL should be crawled."""
-        print(f"🔍 DEBUG: _should_crawl_url checking: {url[:100]}...")
-        
         # Check depth limit
         if depth > self.config.crawler.max_depth:
-            print(f"🔍 DEBUG: URL rejected - depth {depth} > max_depth {self.config.crawler.max_depth}")
             return False
         
         # Check page limit (only if crawl session exists)
         if self.crawl_session and self.crawl_session.pages_crawled >= self.config.crawler.max_pages:
-            print(f"🔍 DEBUG: URL rejected - page limit reached ({self.crawl_session.pages_crawled}/{self.config.crawler.max_pages})")
             return False
         
         # Check domain restrictions
         domain = urlparse(url).netloc
-        print(f"🔍 DEBUG: URL domain: {domain}")
         
         if self.config.allowed_domains:
             if domain not in self.config.allowed_domains:
-                print(f"🔍 DEBUG: URL rejected - domain {domain} not in allowed_domains: {self.config.allowed_domains}")
                 return False
         
         if self.config.blocked_domains:
             if domain in self.config.blocked_domains:
-                print(f"🔍 DEBUG: URL rejected - domain {domain} in blocked_domains: {self.config.blocked_domains}")
                 return False
         
         # URL is valid for crawling - let queue handle deduplication
         url_hash = hashlib.md5(url.encode()).hexdigest()
         self.visited_urls.add(url_hash)  # Keep for statistics only
-        print(f"🔍 DEBUG: URL accepted - added to visited_urls (total visited: {len(self.visited_urls)})")
         return True
     
     async def _add_links_to_queue(self, links: List[str], depth: int) -> None:
         """Add discovered links to the crawling queue."""
-        print(f"🔍 DEBUG: _add_links_to_queue called with {len(links)} links at depth {depth}")
-        
-        # Check each link individually with detailed logging
+        # Check each link individually
         urls_to_add = []
-        for i, link in enumerate(links):
-            should_crawl = self._should_crawl_url(link, depth)
-            print(f"🔍 DEBUG: Link {i+1}/{len(links)}: {link[:100]}... -> should_crawl: {should_crawl}")
-            if should_crawl:
+        for link in links:
+            if self._should_crawl_url(link, depth):
                 urls_to_add.append((link, depth))
         
-        print(f"🔍 DEBUG: After filtering, {len(urls_to_add)} URLs will be added to queue")
-        
         if urls_to_add:
-            added_count = await self.url_queue.put_batch(urls_to_add, priority=5)  # Medium priority for discovered links
-            print(f"🔍 DEBUG: Successfully added {added_count} URLs to queue")
-            print(f"🔍 DEBUG: Queue size after adding: {self.url_queue.size()}")
-        else:
-            print("🔍 DEBUG: No URLs were added to queue - all filtered out")
+            await self.url_queue.put_batch(urls_to_add, priority=5)  # Medium priority for discovered links
     
     async def get_crawl_statistics(self) -> Dict[str, Any]:
         """Get current crawling statistics."""

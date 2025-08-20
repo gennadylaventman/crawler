@@ -13,7 +13,6 @@ from bs4 import BeautifulSoup, Comment
 import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize, sent_tokenize
-import langdetect
 
 from crawler.utils.config import ContentConfig
 from crawler.utils.exceptions import ContentError
@@ -150,15 +149,7 @@ class ContentProcessor:
             
             # Calculate quality metrics
             await self._calculate_quality_metrics(html_content, result)
-            
-            # Detect language if enabled
-            if self.config.enable_language_detection:
-                result.language = self._detect_language(result.cleaned_text)
-            
-            # Calculate readability if enabled
-            if self.config.enable_readability_analysis:
-                result.readability_score = self._calculate_readability(result.cleaned_text)
-            
+                        
             return result
             
         except Exception as e:
@@ -356,70 +347,7 @@ class ContentProcessor:
         # Content density (text per HTML tag)
         if result.total_html_tags > 0:
             result.content_density = text_length / result.total_html_tags
-    
-    def _detect_language(self, text: str) -> Optional[str]:
-        """Detect text language."""
-        if not text or len(text) < 50:
-            return None
         
-        try:
-            # Use first 1000 characters for language detection
-            sample_text = text[:1000]
-            language = langdetect.detect(sample_text)
-            return language
-        except Exception:
-            return None
-    
-    def _calculate_readability(self, text: str) -> Optional[float]:
-        """Calculate readability score (Flesch Reading Ease)."""
-        if not text:
-            return None
-        
-        try:
-            # Simple implementation of Flesch Reading Ease
-            sentences = len(sent_tokenize(text))
-            words = len(word_tokenize(text))
-            syllables = self._count_syllables(text)
-            
-            if sentences == 0 or words == 0:
-                return None
-            
-            # Flesch Reading Ease formula
-            score = 206.835 - (1.015 * (words / sentences)) - (84.6 * (syllables / words))
-            return max(0, min(100, score))  # Clamp between 0 and 100
-            
-        except Exception:
-            return None
-    
-    def _count_syllables(self, text: str) -> int:
-        """Count syllables in text (simple approximation)."""
-        words = word_tokenize(text.lower())
-        syllable_count = 0
-        
-        for word in words:
-            # Simple syllable counting heuristic
-            vowels = 'aeiouy'
-            syllables = 0
-            prev_was_vowel = False
-            
-            for char in word:
-                is_vowel = char in vowels
-                if is_vowel and not prev_was_vowel:
-                    syllables += 1
-                prev_was_vowel = is_vowel
-            
-            # Handle silent 'e'
-            if word.endswith('e') and syllables > 1:
-                syllables -= 1
-            
-            # Every word has at least one syllable
-            if syllables == 0:
-                syllables = 1
-            
-            syllable_count += syllables
-        
-        return syllable_count
-    
     async def _count_sentences(self, result: ProcessedContent) -> None:
         """Count sentences in the cleaned text."""
         if not result.cleaned_text:

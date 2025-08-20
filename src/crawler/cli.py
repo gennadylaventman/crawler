@@ -5,6 +5,7 @@ Command-line interface for the web crawler.
 import asyncio
 import sys
 import os
+from datetime import datetime
 from typing import List, Optional
 import click
 from rich.console import Console
@@ -17,7 +18,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from crawler.utils.config import get_config, CrawlConfig
 from crawler.core.engine import CrawlerEngine
 from crawler.storage.database import DatabaseManager
-from crawler.utils.exceptions import CrawlerError, DatabaseError
+from crawler.utils.exceptions import CrawlerError, DatabaseError, AnalyticsError
+from crawler.reporting import AnalyticsEngine, ReportGenerator, ReportFormat
 
 console = Console()
 
@@ -92,7 +94,7 @@ def analyze(session_id: Optional[str], limit: int):
 async def _run_analysis(session_id: Optional[str], limit: int):
     """Run analysis on crawl results."""
     try:
-        config = get_config()
+        config = get_config("development")
         db_manager = DatabaseManager(config.database)
         await db_manager.initialize(auto_migrate=False)
         
@@ -266,6 +268,206 @@ async def _show_status():
         
     except Exception as e:
         console.print(f"[bold red]✗ Status check failed: {e}[/bold red]")
+        sys.exit(1)
+
+
+@cli.command()
+@click.option('--session-id', '-s', required=True, help='Session ID to generate report for')
+@click.option('--format', '-f', 'report_format',
+              type=click.Choice(['html', 'json', 'csv', 'markdown', 'pdf']),
+              default='html', help='Report format')
+@click.option('--output', '-o', help='Output file path (optional)')
+def report(session_id: str, report_format: str, output: Optional[str]):
+    """Generate a comprehensive report for a crawl session."""
+    asyncio.run(_generate_report(session_id, report_format, output))
+
+
+async def _generate_report(session_id: str, report_format: str, output_path: Optional[str]):
+    """Generate report for a crawl session."""
+    try:
+        config = get_config()
+        db_manager = DatabaseManager(config.database)
+        await db_manager.initialize(auto_migrate=False)
+        
+        console.print(f"[bold blue]Generating {report_format.upper()} report for session {session_id}...[/bold blue]")
+        
+        # Initialize reporting components
+        analytics_engine = AnalyticsEngine(db_manager)
+        report_generator = ReportGenerator(analytics_engine)
+        
+        # Generate the report
+        format_enum = ReportFormat(report_format.lower())
+        
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console
+        ) as progress:
+            task = progress.add_task("Analyzing session data...", total=None)
+            
+            result = await report_generator.generate_session_report(
+                session_id=session_id,
+                report_format=format_enum,
+                output_path=output_path
+            )
+            
+            progress.update(task, description="Report generated!")
+        
+        if output_path:
+            console.print(f"[bold green]✓ Report saved to: {result}[/bold green]")
+        else:
+            console.print(f"[bold green]✓ Report generated successfully![/bold green]")
+            if report_format == 'json':
+                # For JSON, show a preview
+                import json
+                data = json.loads(result)
+                console.print(f"Session: {data.get('report_info', {}).get('session_name', 'Unknown')}")
+                analytics = data.get('analytics', {})
+                summary = analytics.get('volume_metrics', {})
+                console.print(f"Total Pages: {summary.get('total_pages', 0)}")
+                console.print(f"Success Rate: {summary.get('successful_pages', 0)}/{summary.get('total_pages', 0)}")
+        
+        await db_manager.close()
+        
+    except AnalyticsError as e:
+        console.print(f"[bold red]✗ Report generation failed: {e}[/bold red]")
+        sys.exit(1)
+    except Exception as e:
+        console.print(f"[bold red]✗ Unexpected error: {e}[/bold red]")
+        sys.exit(1)
+
+
+@cli.command()
+@click.option('--session-id', '-s', required=True, help='Session ID to analyze')
+@click.option('--trends', is_flag=True, help='Include performance trend analysis')
+@click.option('--output', '-o', help='Output file path for detailed results (JSON)')
+def analytics(session_id: str, trends: bool, output: Optional[str]):
+    """Perform detailed analytics analysis on a crawl session."""
+    asyncio.run(_run_analytics(session_id, trends, output))
+
+
+async def _run_analytics(session_id: str, include_trends: bool, output_path: Optional[str]):
+    """Run detailed analytics analysis."""
+    try:
+        config = get_config()
+        db_manager = DatabaseManager(config.database)
+        await db_manager.initialize(auto_migrate=False)
+        
+        console.print(f"[bold blue]Analyzing session {session_id}...[/bold blue]")
+        
+        # Initialize analytics engine
+        analytics_engine = AnalyticsEngine(db_manager)
+        
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console
+        ) as progress:
+            task = progress.add_task("Running analytics...", total=None)
+            
+            # Get comprehensive analytics
+            analytics = await analytics_engine.analyze_crawl_session(session_id)
+            
+            progress.update(task, description="Analytics completed!")
+        
+        # Display results in console
+        console.print(f"\n[bold green]Analytics Results for {analytics.session_name}[/bold green]")
+        
+        # Summary metrics table
+        summary_table = Table(title="Summary Metrics")
+        summary_table.add_column("Metric", style="cyan")
+        summary_table.add_column("Value", style="magenta")
+        
+        summary_table.add_row("Total Pages", f"{analytics.total_pages:,}")
+        summary_table.add_row("Successful Pages", f"{analytics.successful_pages:,}")
+        summary_table.add_row("Failed Pages", f"{analytics.failed_pages:,}")
+        summary_table.add_row("Success Rate", f"{(analytics.successful_pages / analytics.total_pages * 100):.1f}%" if analytics.total_pages > 0 else "0%")
+        summary_table.add_row("Total Words", f"{analytics.total_words:,}")
+        summary_table.add_row("Unique Words", f"{analytics.unique_words:,}")
+        summary_table.add_row("Unique Domains", f"{analytics.unique_domains}")
+        summary_table.add_row("Pages per Second", f"{analytics.pages_per_second:.2f}")
+        summary_table.add_row("Avg Response Time", f"{analytics.average_response_time:.2f}ms")
+        summary_table.add_row("Error Rate", f"{analytics.error_rate * 100:.1f}%")
+        
+        console.print(summary_table)
+        
+        # Performance metrics table
+        perf_table = Table(title="Performance Metrics")
+        perf_table.add_column("Metric", style="cyan")
+        perf_table.add_column("Value", style="magenta")
+        
+        perf_table.add_row("Average Response Time", f"{analytics.average_response_time:.2f}ms")
+        perf_table.add_row("Median Response Time", f"{analytics.median_response_time:.2f}ms")
+        perf_table.add_row("95th Percentile", f"{analytics.p95_response_time:.2f}ms")
+        perf_table.add_row("Total Duration", f"{analytics.total_duration:.1f}s")
+        
+        console.print(perf_table)
+        
+        # Top words table
+        if analytics.top_words:
+            words_table = Table(title="Top 10 Words")
+            words_table.add_column("Rank", style="cyan")
+            words_table.add_column("Word", style="green")
+            words_table.add_column("Frequency", style="magenta")
+            
+            for i, (word, freq) in enumerate(analytics.top_words[:10], 1):
+                words_table.add_row(str(i), word, f"{freq:,}")
+            
+            console.print(words_table)
+        
+        # Top domains table
+        if analytics.top_domains:
+            domains_table = Table(title="Top Domains")
+            domains_table.add_column("Rank", style="cyan")
+            domains_table.add_column("Domain", style="green")
+            domains_table.add_column("Pages", style="magenta")
+            
+            for i, (domain, count) in enumerate(analytics.top_domains[:5], 1):
+                domains_table.add_row(str(i), domain, f"{count}")
+            
+            console.print(domains_table)
+        
+        # Performance trends if requested
+        if include_trends:
+            console.print(f"\n[bold blue]Performance Trends Analysis[/bold blue]")
+            trends = await analytics_engine.analyze_performance_trends(session_id)
+            
+            if 'error' not in trends:
+                trends_table = Table(title="Performance Trends")
+                trends_table.add_column("Metric", style="cyan")
+                trends_table.add_column("Trend", style="magenta")
+                trends_table.add_column("Average", style="yellow")
+                
+                perf_summary = trends.get('performance_summary', {})
+                trends_table.add_row("Response Time", trends.get('response_time_trend', 'unknown'), f"{perf_summary.get('avg_response_time', 0):.2f}ms")
+                trends_table.add_row("Processing Time", trends.get('processing_time_trend', 'unknown'), f"{perf_summary.get('avg_processing_time', 0):.2f}ms")
+                trends_table.add_row("Total Time", trends.get('total_time_trend', 'unknown'), f"{perf_summary.get('avg_total_time', 0):.2f}ms")
+                
+                console.print(trends_table)
+            else:
+                console.print(f"[yellow]⚠ {trends['error']}[/yellow]")
+        
+        # Save detailed results if output path provided
+        if output_path:
+            import json
+            detailed_results = {
+                'analytics': analytics.to_dict(),
+                'trends': trends if include_trends else None,
+                'generated_at': datetime.now().isoformat()
+            }
+            
+            with open(output_path, 'w') as f:
+                json.dump(detailed_results, f, indent=2, default=str)
+            
+            console.print(f"\n[bold green]✓ Detailed results saved to: {output_path}[/bold green]")
+        
+        await db_manager.close()
+        
+    except AnalyticsError as e:
+        console.print(f"[bold red]✗ Analytics failed: {e}[/bold red]")
+        sys.exit(1)
+    except Exception as e:
+        console.print(f"[bold red]✗ Unexpected error: {e}[/bold red]")
         sys.exit(1)
 
 

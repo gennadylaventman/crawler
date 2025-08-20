@@ -1,62 +1,249 @@
-database:
-  host: localhost
-  port: 5432
-  database: webcrawler
-  username: crawler
-  password: crawler_password
-  pool_size: 20
-  max_overflow: 10
-  pool_timeout: 30
+# Multi-environment configuration file
+# Contains both default and development configurations
 
-crawler:
-  max_depth: 3
-  max_pages: 1000
-  concurrent_workers: 10
-  rate_limit_delay: 1.0
-  request_timeout: 30
-  max_retries: 3
-  user_agent: "WebCrawler/1.0 (+https://example.com/bot)"
-  max_connections: 100
-  max_connections_per_host: 20
-  dns_cache_ttl: 300
-  keepalive_timeout: 30
+default:
+  database:
+    host: localhost
+    port: 5432
+    database: webcrawler
+    username: crawler
+    password: crawler_password
+    pool_size: 20
+    max_overflow: 10
+    pool_timeout: 30
 
-content:
-  max_page_size: 10485760
-  allowed_content_types:
-    - "text/html"
-    - "application/xhtml+xml"
-    - "text/xml"
-    - "application/xml"
-  remove_scripts: true
-  remove_styles: true
-  min_text_length: 100
-  max_words_per_page: 50000
-  chunk_size: 8192
-  enable_language_detection: true
-  enable_readability_analysis: true
+  crawler:
+    max_depth: 3
+    max_pages: 1000
+    concurrent_workers: 10
+    rate_limit_delay: 1.0
+    request_timeout: 30
+    max_retries: 3
+    user_agent: "WebCrawler/1.0 (+https://example.com/bot)"
+    max_connections: 100
+    max_connections_per_host: 20
+    dns_cache_ttl: 300
+    keepalive_timeout: 30
 
-monitoring:
-  enable_metrics: true
-  metrics_interval: 60
-  enable_profiling: false
-  log_level: "DEBUG"
-  slow_response_threshold: 5000.0
-  slow_processing_threshold: 2000.0
-  high_memory_threshold: 1073741824
+  content:
+    max_page_size: 10485760
+    allowed_content_types:
+      - "text/html"
+      - "application/xhtml+xml"
+      - "text/xml"
+      - "application/xml"
+    remove_scripts: true
+    remove_styles: true
+    min_text_length: 100
+    max_words_per_page: 50000
+    chunk_size: 8192
+    enable_language_detection: true
+    enable_readability_analysis: true
 
-reporting:
-  generate_visualizations: true
-  export_formats:
-    - "json"
-    - "csv"
-    - "html"
-  top_words_limit: 100
-  include_performance_charts: true
-  include_error_analysis: true
-  include_content_analysis: true
+  session_name: "debug_crawl"
+  start_urls: []
+  allowed_domains: null
+  blocked_domains: null
 
-session_name: "debug_crawl"
-start_urls: []
-allowed_domains: null
-blocked_domains: null
+# Development Environment Configuration
+# This configuration is optimized for local development and testing
+development:
+  # Database Configuration
+  database:
+    host: localhost
+    port: 5432
+    name: webcrawler
+    user: crawler
+    password: ${DB_PASSWORD}
+    pool_size: 5
+    max_overflow: 10
+    echo: false  # Set to true for SQL query logging
+
+  # Crawler Configuration
+  crawler:
+    # Worker settings
+    max_workers: 3
+    max_depth: 2
+    max_pages_per_domain: 100
+    max_total_pages: 1000
+    
+    # Request settings
+    delay_between_requests: 0.2
+    request_timeout: 30
+    max_retries: 3
+    retry_delay: 2.0
+    
+    # User agent
+    user_agent: "WebCrawler/1.0 (Development)"
+    
+    # Content filtering
+    allowed_content_types:
+      - "text/html"
+      - "application/xhtml+xml"
+      - "text/plain"
+      - "text/xml"
+      - "application/xml"
+    
+    # URL filtering
+    blocked_extensions:
+      - ".pdf"
+      - ".doc"
+      - ".docx"
+      - ".jpg"
+      - ".jpeg"
+      - ".png"
+      - ".gif"
+      - ".mp3"
+      - ".mp4"
+      - ".zip"
+      - ".exe"
+    
+    # Domain settings
+    respect_robots_txt: true
+    robots_cache_ttl: 3600  # 1 hour
+    
+    # Queue settings
+    url_queue_size: 50000  # Increased for development to handle large sitemaps
+    enable_bloom_filter: true
+  # Content Configuration (required by CrawlConfig)
+  content:
+    max_page_size: 10485760
+    allowed_content_types:
+      - "text/html"
+      - "application/xhtml+xml"
+      - "text/plain"
+      - "text/xml"
+      - "application/xml"
+    remove_scripts: true
+    remove_styles: true
+    min_text_length: 100
+    max_words_per_page: 50000
+    chunk_size: 8192
+
+  # Storage Configuration
+  storage:
+    # Data directories
+    data_dir: "./data"
+    reports_dir: "./reports"
+    profiles_dir: "./profiles"
+    
+    # File formats
+    export_formats:
+      - "json"
+      - "csv"
+      - "html"
+    
+    # Compression
+    compress_data: false
+    compression_level: 6
+
+  # Logging Configuration
+  logging:
+    level: DEBUG
+    format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    
+    # File logging
+    file:
+      enabled: true
+      path: "logs/crawler_dev.log"
+      max_size: "10MB"
+      backup_count: 5
+      rotation: "time"  # or "size"
+    
+    # Console logging
+    console:
+      enabled: true
+      level: INFO
+    
+    # JSON logging for structured logs
+    json_logging: false
+    
+    # Logger levels for specific modules
+    loggers:
+      crawler.core: DEBUG
+      crawler.content: DEBUG
+      crawler.url_management: DEBUG
+      crawler.monitoring: INFO
+      crawler.reporting: INFO
+      aiohttp: WARNING
+      asyncpg: WARNING
+
+  # Content Analysis Configuration
+  content_analysis:
+    # Text processing
+    text_processing:
+      min_text_length: 100
+      max_text_length: 1000000
+      remove_navigation: true
+      clean_text: true
+    
+    # Word frequency analysis
+    word_analysis:
+      min_word_length: 2
+      max_word_length: 50
+      include_stopwords: false
+      top_words_limit: 100
+    
+
+  # Reporting Configuration (required by CrawlConfig)
+  reporting:
+    generate_visualizations: true
+    export_formats:
+      - "json"
+      - "csv"
+      - "html"
+    top_words_limit: 100
+    include_performance_charts: true
+    include_error_analysis: true
+    include_content_analysis: true
+
+  # Session-specific settings (required by CrawlConfig)
+  session_name: "development_crawl"
+  start_urls: []
+  allowed_domains: null
+  blocked_domains: null
+
+  # Security Configuration
+  security:
+    # Request headers
+    headers:
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      "Accept-Language": "en-US,en;q=0.5"
+      "Accept-Encoding": "gzip, deflate"
+      "DNT": "1"
+      "Connection": "keep-alive"
+      "Upgrade-Insecure-Requests": "1"
+    
+    # SSL/TLS settings
+    ssl:
+      verify_certificates: true
+      ssl_context: null
+    
+    # Proxy settings (if needed)
+    proxy:
+      enabled: false
+      http_proxy: null
+      https_proxy: null
+
+  # Development-specific settings
+  development:
+    # Debug features
+    debug:
+      save_raw_html: true
+      save_request_logs: true
+      verbose_errors: true
+    
+    # Testing
+    testing:
+      mock_requests: false
+      test_data_dir: "tests/data"
+      fixtures_dir: "tests/fixtures"
+    
+    # Hot reloading
+    hot_reload: true
+    
+    # Development server
+    dev_server:
+      enabled: false
+      port: 8000
+      host: "localhost"

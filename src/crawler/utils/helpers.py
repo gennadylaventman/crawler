@@ -10,7 +10,7 @@ import re
 import time
 import asyncio
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional, Union, Callable, TypeVar, Generic
+from typing import Dict, List, Any, Optional, Union, Callable, TypeVar
 from urllib.parse import urlparse, urljoin
 from pathlib import Path
 import json
@@ -20,83 +20,6 @@ from crawler.utils.exceptions import CrawlerError
 from crawler.monitoring.logger import get_logger
 
 T = TypeVar('T')
-
-
-class Timer:
-    """Simple timer utility for measuring execution time."""
-    
-    def __init__(self):
-        self.start_time: Optional[float] = None
-        self.end_time: Optional[float] = None
-    
-    def start(self) -> None:
-        """Start the timer."""
-        self.start_time = time.perf_counter()
-        self.end_time = None
-    
-    def stop(self) -> float:
-        """Stop the timer and return elapsed time."""
-        if self.start_time is None:
-            raise ValueError("Timer not started")
-        
-        self.end_time = time.perf_counter()
-        return self.elapsed
-    
-    @property
-    def elapsed(self) -> float:
-        """Get elapsed time in seconds."""
-        if self.start_time is None:
-            return 0.0
-        
-        end = self.end_time or time.perf_counter()
-        return end - self.start_time
-    
-    def __enter__(self):
-        """Context manager entry."""
-        self.start()
-        return self
-    
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit."""
-        self.stop()
-
-
-class RateLimiter:
-    """Rate limiter for controlling request frequency."""
-    
-    def __init__(self, max_requests: int, time_window: float):
-        self.max_requests = max_requests
-        self.time_window = time_window
-        self.requests: List[float] = []
-        self._lock = asyncio.Lock()
-    
-    async def acquire(self) -> None:
-        """Acquire permission to make a request."""
-        async with self._lock:
-            current_time = time.time()
-            
-            # Remove old requests outside the time window
-            cutoff_time = current_time - self.time_window
-            self.requests = [req_time for req_time in self.requests if req_time > cutoff_time]
-            
-            # Check if we can make a request
-            if len(self.requests) >= self.max_requests:
-                # Calculate wait time
-                oldest_request = min(self.requests)
-                wait_time = self.time_window - (current_time - oldest_request)
-                
-                if wait_time > 0:
-                    await asyncio.sleep(wait_time)
-                    # Recursively try again
-                    await self.acquire()
-                    return
-            
-            # Record this request
-            self.requests.append(current_time)
-    
-    def reset(self) -> None:
-        """Reset the rate limiter."""
-        self.requests.clear()
 
 
 class URLUtils:
@@ -413,80 +336,6 @@ class AsyncUtils:
         else:
             raise CrawlerError("Retry failed with no exception recorded")
 
-
-class ValidationUtils:
-    """Utility functions for data validation."""
-    
-    @staticmethod
-    def is_valid_url(url: str) -> bool:
-        """Check if URL is valid."""
-        try:
-            parsed = urlparse(url)
-            return bool(parsed.scheme and parsed.netloc)
-        except:
-            return False
-    
-    @staticmethod
-    def is_valid_email(email: str) -> bool:
-        """Check if email is valid."""
-        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-        return bool(re.match(pattern, email))
-    
-    @staticmethod
-    def validate_config(config: Dict[str, Any], required_keys: List[str]) -> List[str]:
-        """Validate configuration dictionary."""
-        missing_keys = []
-        for key in required_keys:
-            if key not in config:
-                missing_keys.append(key)
-        return missing_keys
-    
-    @staticmethod
-    def sanitize_filename(filename: str) -> str:
-        """Sanitize filename for safe file system usage."""
-        # Remove or replace invalid characters
-        sanitized = re.sub(r'[<>:"/\\|?*]', '_', filename)
-        
-        # Remove leading/trailing dots and spaces
-        sanitized = sanitized.strip('. ')
-        
-        # Limit length
-        if len(sanitized) > 255:
-            sanitized = sanitized[:255]
-        
-        return sanitized or 'unnamed'
-
-
-class CacheUtils:
-    """Utility functions for caching operations."""
-    
-    @staticmethod
-    def create_cache_key(*args, **kwargs) -> str:
-        """Create cache key from arguments."""
-        key_parts = []
-        
-        # Add positional arguments
-        for arg in args:
-            key_parts.append(str(arg))
-        
-        # Add keyword arguments
-        for key, value in sorted(kwargs.items()):
-            key_parts.append(f"{key}={value}")
-        
-        # Create hash of combined key
-        key_string = "|".join(key_parts)
-        return hashlib.md5(key_string.encode()).hexdigest()
-    
-    @staticmethod
-    def is_cache_valid(cache_time: datetime, ttl_seconds: int) -> bool:
-        """Check if cache entry is still valid."""
-        if not cache_time:
-            return False
-        
-        expiry_time = cache_time + timedelta(seconds=ttl_seconds)
-        return datetime.utcnow() < expiry_time
-
-
 class ConfigUtils:
     """Utility functions for configuration management."""
     
@@ -666,35 +515,3 @@ class LoggingUtils:
         
         context_str = " | ".join(f"{k}={v}" for k, v in context.items())
         return f"{message} | {context_str}"
-
-
-# Convenience functions
-def get_current_timestamp() -> str:
-    """Get current timestamp in ISO format."""
-    return datetime.utcnow().isoformat() + 'Z'
-
-
-def generate_session_id(prefix: str = 'crawl') -> str:
-    """Generate unique session ID."""
-    timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-    random_suffix = hashlib.md5(str(time.time()).encode()).hexdigest()[:8]
-    return f"{prefix}_{timestamp}_{random_suffix}"
-
-
-def chunks(lst: List[T], chunk_size: int) -> List[List[T]]:
-    """Split list into chunks of specified size."""
-    return [lst[i:i + chunk_size] for i in range(0, len(lst), chunk_size)]
-
-
-def deduplicate_list(lst: List[T], key_func: Optional[Callable[[T], Any]] = None) -> List[T]:
-    """Remove duplicates from list while preserving order."""
-    seen = set()
-    result = []
-    
-    for item in lst:
-        key = key_func(item) if key_func else item
-        if key not in seen:
-            seen.add(key)
-            result.append(item)
-    
-    return result

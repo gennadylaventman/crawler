@@ -14,13 +14,12 @@ from urllib.parse import urljoin, urlparse
 import aiohttp
 from bs4 import BeautifulSoup
 
-from ..utils.exceptions import CrawlerError, NetworkError, ContentError
-from ..content.extractor import ContentExtractor
-from ..content.processor import ContentProcessor
-from ..content.analyzer import WordFrequencyAnalyzer
-from ..url_management.validator import URLValidator
-from ..monitoring.metrics import MetricsCollector, PageMetrics
-from ..monitoring.profiler import get_performance_profiler, async_profile_operation
+from crawler.utils.exceptions import CrawlerError, NetworkError, ContentError
+from crawler.content.extractor import ContentExtractor
+from crawler.content.processor import ContentProcessor
+from crawler.content.analyzer import WordFrequencyAnalyzer
+from crawler.url_management.validator import URLValidator
+from crawler.monitoring.profiler import get_performance_profiler, async_profile_operation
 
 
 logger = logging.getLogger(__name__)
@@ -41,7 +40,6 @@ class CrawlerWorker:
         self,
         session: aiohttp.ClientSession,
         config: Dict[str, Any],
-        metrics_collector: MetricsCollector,
         worker_id: int = 0
     ):
         """
@@ -50,12 +48,10 @@ class CrawlerWorker:
         Args:
             session: Shared aiohttp client session
             config: Crawler configuration
-            metrics_collector: Metrics collection instance
             worker_id: Unique identifier for this worker
         """
         self.session = session
         self.config = config
-        self.metrics = metrics_collector
         self.worker_id = worker_id
         
         # Initialize processing components
@@ -206,19 +202,7 @@ class CrawlerWorker:
                 # Record total processing time
                 total_time = time.time() - start_time
                 result['timing']['total'] = total_time
-                
-                # Update metrics
-                # Create page metrics and record them
-                page_metrics = PageMetrics(
-                    url=url,
-                    depth=depth
-                )
-                page_metrics.total_time = result['timing']['total']
-                page_metrics.raw_content_size = result['size_bytes']
-                page_metrics.error = result['error']
-                
-                await self.metrics.record_page_metrics(page_metrics)
-            
+                                            
             return result
     
     async def _fetch_page(self, url: str) -> Dict[str, Any]:
@@ -396,7 +380,6 @@ class WorkerPool:
         self,
         session: aiohttp.ClientSession,
         config: Dict[str, Any],
-        metrics_collector: MetricsCollector,
         pool_size: int = 10
     ):
         """
@@ -405,17 +388,15 @@ class WorkerPool:
         Args:
             session: Shared aiohttp client session
             config: Crawler configuration
-            metrics_collector: Metrics collection instance
             pool_size: Number of workers in the pool
         """
         self.session = session
         self.config = config
-        self.metrics = metrics_collector
         self.pool_size = pool_size
         
         # Create workers
         self.workers = [
-            CrawlerWorker(session, config, metrics_collector, worker_id=i)
+            CrawlerWorker(session, config, worker_id=i)
             for i in range(pool_size)
         ]
         

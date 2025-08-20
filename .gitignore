@@ -20,3 +20,5 @@
 /performance_analysis.md
 /recommendations_report.md
 /tests
+__pycache__/
+venv

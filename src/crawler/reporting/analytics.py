@@ -6,6 +6,7 @@ crawl results, performance metrics, and generating insights.
 """
 
 import asyncio
+import uuid
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Tuple
 from collections import defaultdict, Counter
@@ -97,7 +98,14 @@ class AnalyticsEngine:
     Comprehensive analytics engine for crawler data analysis.
     """
     
-    def __init__(self, database_manager=None):
+    def __init__(self, database_manager):
+        """Initialize AnalyticsEngine with a required database manager."""
+        if database_manager is None:
+            raise AnalyticsError("AnalyticsEngine requires a valid database_manager")
+        
+        if not hasattr(database_manager, '_initialized') or not database_manager._initialized:
+            raise AnalyticsError("Database manager must be initialized before use")
+            
         self.db = database_manager
         self.logger = get_logger('analytics')
     
@@ -114,29 +122,23 @@ class AnalyticsEngine:
         try:
             self.logger.info(f"Starting analysis for session {session_id}")
             
-            # Get session information
-            session_info = await self._get_session_info(session_id)
-            if not session_info:
+            # Use database statistics directly to match CLI analyze results
+            stats = await self.db.get_session_statistics(session_id)
+            if not stats:
                 raise AnalyticsError(f"Session {session_id} not found")
             
-            # Get all pages for this session
+            session_info = stats.get('session_info', {})
+            page_stats = stats.get('page_statistics', {})
+            top_words = stats.get('top_words', [])
+            
+            # Get additional data for comprehensive analysis
             pages = await self._get_session_pages(session_id)
-            
-            # Get word frequencies
-            word_frequencies = await self._get_session_word_frequencies(session_id)
-            
-            # Get links
             links = await self._get_session_links(session_id)
-            
-            # Get metrics
-            metrics = await self._get_session_metrics(session_id)
-            
-            # Get errors
             errors = await self._get_session_errors(session_id)
             
-            # Perform analysis
-            analytics = await self._compute_analytics(
-                session_info, pages, word_frequencies, links, metrics, errors
+            # Build analytics using database statistics (to match CLI analyze)
+            analytics = await self._build_analytics_from_stats(
+                session_info, page_stats, top_words, pages, links, errors
             )
             
             self.logger.info(f"Completed analysis for session {session_id}")
@@ -147,100 +149,224 @@ class AnalyticsEngine:
             raise AnalyticsError(f"Analysis failed: {e}")
     
     async def _get_session_info(self, session_id: str) -> Optional[Dict[str, Any]]:
-        """Get session information."""
-        # This would query the database for session info
-        # For now, return mock data
-        return {
-            'session_id': session_id,
-            'name': 'Sample Crawl',
-            'start_time': datetime.now() - timedelta(hours=1),
-            'end_time': datetime.now(),
-            'status': 'completed'
-        }
+        """Get session information from database."""
+        try:
+            result = await self.db.get_crawl_session(session_id)
+            if not result:
+                raise AnalyticsError(f"Session {session_id} not found in database")
+            return result
+        except Exception as e:
+            self.logger.error(f"Failed to get session info for {session_id}: {e}")
+            raise AnalyticsError(f"Failed to get session info: {e}")
     
     async def _get_session_pages(self, session_id: str) -> List[Dict[str, Any]]:
-        """Get all pages for a session."""
-        # Mock data - in real implementation, this would query the database
-        return [
-            {
-                'url': 'https://example.com/page1',
-                'status_code': 200,
-                'word_count': 500,
-                'processing_successful': True,
-                'response_time': 1.2,
-                'content_type': 'text/html',
-                'language': 'en',
-                'quality_score': 0.8,
-                'readability_score': 65.0
-            },
-            {
-                'url': 'https://example.com/page2',
-                'status_code': 200,
-                'word_count': 750,
-                'processing_successful': True,
-                'response_time': 0.9,
-                'content_type': 'text/html',
-                'language': 'en',
-                'quality_score': 0.7,
-                'readability_score': 58.0
-            },
-            {
-                'url': 'https://example.com/page3',
-                'status_code': 404,
-                'word_count': 0,
-                'processing_successful': False,
-                'response_time': 0.5,
-                'content_type': 'text/html',
-                'language': None,
-                'quality_score': 0.0,
-                'readability_score': None
-            }
-        ]
+        """Get all pages for a session from database."""
+        try:
+            result = await self.db.get_session_pages(session_id)
+            return result
+        except Exception as e:
+            self.logger.error(f"Failed to get pages for session {session_id}: {e}")
+            raise AnalyticsError(f"Failed to get session pages: {e}")
     
     async def _get_session_word_frequencies(self, session_id: str) -> List[Dict[str, Any]]:
-        """Get word frequencies for a session."""
-        # Mock data
-        return [
-            {'word': 'web', 'frequency': 45},
-            {'word': 'crawler', 'frequency': 32},
-            {'word': 'data', 'frequency': 28},
-            {'word': 'analysis', 'frequency': 25},
-            {'word': 'content', 'frequency': 22},
-            {'word': 'page', 'frequency': 20},
-            {'word': 'system', 'frequency': 18},
-            {'word': 'information', 'frequency': 15},
-            {'word': 'search', 'frequency': 12},
-            {'word': 'technology', 'frequency': 10}
-        ]
+        """Get word frequencies for a session from database."""
+        try:
+            result = await self.db.get_word_frequency_analysis(session_id, limit=20)
+            if result and 'top_words' in result:
+                word_frequencies = [
+                    {'word': word_data['word'], 'frequency': word_data['total_frequency']}
+                    for word_data in result['top_words']
+                ]
+                return word_frequencies
+            else:
+                return []
+        except Exception as e:
+            self.logger.error(f"Failed to get word frequencies for session {session_id}: {e}")
+            raise AnalyticsError(f"Failed to get word frequencies: {e}")
     
     async def _get_session_links(self, session_id: str) -> List[Dict[str, Any]]:
-        """Get links for a session."""
-        # Mock data
-        return [
-            {'target_url': 'https://example.com/page1', 'is_internal': True},
-            {'target_url': 'https://example.com/page2', 'is_internal': True},
-            {'target_url': 'https://external.com/page1', 'is_internal': False},
-            {'target_url': 'https://another.com/page1', 'is_internal': False}
-        ]
+        """Get links for a session from database."""
+        try:
+            result = await self.db.get_session_links(session_id)
+            return result
+        except Exception as e:
+            self.logger.error(f"Failed to get links for session {session_id}: {e}")
+            raise AnalyticsError(f"Failed to get session links: {e}")
     
     async def _get_session_metrics(self, session_id: str) -> List[Dict[str, Any]]:
-        """Get performance metrics for a session."""
-        # Mock data
-        return [
-            {'total_time': 1200, 'server_response_time': 800, 'processing_time': 400},
-            {'total_time': 900, 'server_response_time': 600, 'processing_time': 300},
-            {'total_time': 500, 'server_response_time': 300, 'processing_time': 200}
-        ]
+        """Get performance metrics for a session from database."""
+        try:
+            result = await self.db.get_session_metrics_simple(session_id)
+            return result
+        except Exception as e:
+            self.logger.error(f"Failed to get metrics for session {session_id}: {e}")
+            raise AnalyticsError(f"Failed to get session metrics: {e}")
     
     async def _get_session_errors(self, session_id: str) -> List[Dict[str, Any]]:
-        """Get errors for a session."""
-        # Mock data
-        return [
-            {'error_type': 'network_error', 'error_message': 'Connection timeout'},
-            {'error_type': 'content_error', 'error_message': 'Invalid content type'},
-            {'error_type': 'network_error', 'error_message': 'DNS resolution failed'}
-        ]
+        """Get errors for a session from database."""
+        try:
+            result = await self.db.get_session_errors(session_id)
+            return result
+        except Exception as e:
+            self.logger.error(f"Failed to get errors for session {session_id}: {e}")
+            raise AnalyticsError(f"Failed to get session errors: {e}")
     
+    async def _build_analytics_from_stats(
+        self, session_info: Dict, page_stats: Dict, top_words: List[Dict],
+        pages: List[Dict], links: List[Dict], errors: List[Dict]
+    ) -> CrawlAnalytics:
+        """
+        Build analytics using database statistics (matches CLI analyze results).
+        """
+        try:
+            # Convert session_info fields - use started_at and completed_at
+            session_start = session_info.get('started_at') or session_info.get('start_time')
+            session_end = session_info.get('completed_at') or session_info.get('end_time')
+            
+            if isinstance(session_start, str):
+                session_start = datetime.fromisoformat(session_start.replace('Z', '+00:00'))
+            if isinstance(session_end, str):
+                session_end = datetime.fromisoformat(session_end.replace('Z', '+00:00'))
+            
+            # Calculate duration
+            duration = 0
+            if session_start and session_end:
+                duration = (session_end - session_start).total_seconds()
+            
+            # Use database statistics directly (matches CLI analyze)
+            error_rate = float(page_stats.get('error_rate', 0))
+            avg_response_time = float(page_stats.get('avg_response_time', 0))
+            pages_processed = int(page_stats.get('pages_processed', 0))
+            error_pages = int(page_stats.get('error_pages', 0))
+            
+            # Build word frequency list from database top_words
+            word_freq_list = []
+            for word_data in top_words:
+                word_freq_list.append({
+                    'word': word_data.get('word', ''),
+                    'frequency': int(word_data.get('frequency', 0))
+                })
+            
+            # Build page analysis
+            page_analysis = []
+            for page in pages:
+                response_time = page.get('response_time')
+                if response_time is not None:
+                    response_time = float(response_time) * 1000  # Convert to ms
+                
+                page_analysis.append({
+                    'url': page.get('url', ''),
+                    'status_code': page.get('status_code', 0),
+                    'response_time': response_time,
+                    'content_length': page.get('content_length', 0),
+                    'word_count': page.get('word_count', 0),
+                    'link_count': page.get('link_count', 0)
+                })
+            
+            # Build link analysis
+            link_analysis = []
+            for link in links:
+                link_analysis.append({
+                    'source_url': link.get('source_url', ''),
+                    'target_url': link.get('target_url', ''),
+                    'link_text': link.get('link_text', ''),
+                    'is_external': bool(link.get('is_external', False))
+                })
+            
+            # Build error analysis
+            error_analysis = []
+            for error in errors:
+                error_analysis.append({
+                    'url': error.get('url', ''),
+                    'error_type': error.get('error_type', ''),
+                    'error_message': error.get('error_message', ''),
+                    'status_code': error.get('status_code', 0)
+                })
+            
+            # Calculate additional metrics needed for CrawlAnalytics
+            from urllib.parse import urlparse
+            
+            # Domain analysis
+            domains = set()
+            for page in pages:
+                try:
+                    domain = urlparse(page.get('url', '')).netloc
+                    if domain:
+                        domains.add(domain)
+                except:
+                    pass
+            unique_domains = len(domains)
+            
+            # Domain distribution for top_domains
+            domain_counter = Counter()
+            for page in pages:
+                try:
+                    domain = urlparse(page.get('url', '')).netloc
+                    if domain:
+                        domain_counter[domain] += 1
+                except:
+                    pass
+            top_domains = domain_counter.most_common(10)
+            
+            # Convert word frequencies to tuples for top_words
+            top_words_tuples = [(word_data.get('word', ''), int(word_data.get('frequency', 0)))
+                               for word_data in top_words[:10]]
+            
+            # Calculate total words
+            total_words = sum(int(p.get('word_count', 0)) for p in pages)
+            
+            # Content type and language distributions
+            content_type_dist = Counter(p.get('content_type', 'unknown') for p in pages)
+            language_dist = Counter(p.get('language', 'unknown') for p in pages if p.get('language'))
+            
+            # Error summary
+            error_summary = Counter(e.get('error_type', 'unknown') for e in errors)
+            
+            # Performance metrics (use database values or calculate from pages)
+            response_times = [float(p.get('response_time', 0)) for p in pages if p.get('response_time')]
+            if response_times:
+                median_response_time = statistics.median(response_times) * 1000  # Convert to ms
+                p95_response_time = self._calculate_percentile(response_times, 95) * 1000  # Convert to ms
+            else:
+                median_response_time = avg_response_time
+                p95_response_time = avg_response_time
+            
+            # Pages per second
+            pages_per_second = pages_processed / duration if duration > 0 else 0
+            
+            # Quality metrics (defaults for now)
+            average_quality_score = 0.0
+            readability_distribution = {'Standard': pages_processed}
+            
+            return CrawlAnalytics(
+                session_id=session_info.get('session_id', ''),
+                session_name=session_info.get('name', 'Unknown Session'),
+                total_pages=pages_processed,
+                successful_pages=pages_processed - error_pages,
+                failed_pages=error_pages,
+                total_words=total_words,
+                unique_words=len(word_freq_list),
+                total_links=len(links),
+                unique_domains=unique_domains,
+                average_response_time=avg_response_time,  # Already in ms from database
+                median_response_time=median_response_time,
+                p95_response_time=p95_response_time,
+                pages_per_second=pages_per_second,
+                total_duration=duration,
+                top_words=top_words_tuples,
+                top_domains=top_domains,
+                content_type_distribution=dict(content_type_dist),
+                language_distribution=dict(language_dist),
+                error_summary=dict(error_summary),
+                error_rate=error_rate,
+                average_quality_score=average_quality_score,
+                readability_distribution=readability_distribution
+            )
+            
+        except Exception as e:
+            self.logger.error(f"Error building analytics from stats: {e}")
+            raise AnalyticsError(f"Failed to build analytics: {e}")
+
     async def _compute_analytics(
         self,
         session_info: Dict[str, Any],
@@ -252,11 +378,28 @@ class AnalyticsEngine:
     ) -> CrawlAnalytics:
         """Compute comprehensive analytics from raw data."""
         
-        # Basic statistics
+        # Helper function to convert Decimal to float safely
+        def to_float(value):
+            if value is None:
+                return 0.0
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return 0.0
+        
+        def to_int(value):
+            if value is None:
+                return 0
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return 0
+        
+        # Basic statistics with type conversion
         total_pages = len(pages)
-        successful_pages = sum(1 for p in pages if p['processing_successful'])
+        successful_pages = sum(1 for p in pages if p.get('processing_successful', False))
         failed_pages = total_pages - successful_pages
-        total_words = sum(p['word_count'] for p in pages)
+        total_words = sum(to_int(p.get('word_count', 0)) for p in pages)
         unique_words = len(word_frequencies)
         total_links = len(links)
         
@@ -271,8 +414,10 @@ class AnalyticsEngine:
                 pass
         unique_domains = len(domains)
         
-        # Performance metrics
-        response_times = [p['response_time'] for p in pages if p['response_time']]
+        # Performance metrics with type conversion
+        response_times = [to_float(p.get('response_time')) for p in pages if p.get('response_time') is not None]
+        response_times = [rt for rt in response_times if rt > 0]  # Filter out zero/invalid values
+        
         if response_times:
             average_response_time = statistics.mean(response_times)
             median_response_time = statistics.median(response_times)
@@ -280,10 +425,21 @@ class AnalyticsEngine:
         else:
             average_response_time = median_response_time = p95_response_time = 0.0
         
-        # Calculate duration and pages per second
-        start_time = session_info.get('start_time', datetime.now())
-        end_time = session_info.get('end_time', datetime.now())
-        total_duration = (end_time - start_time).total_seconds()
+        # Calculate duration and pages per second with None handling
+        start_time = session_info.get('start_time') or session_info.get('started_at') or datetime.now()
+        end_time = session_info.get('end_time') or session_info.get('completed_at') or datetime.now()
+        
+        # Handle None values
+        if start_time is None:
+            start_time = datetime.now() - timedelta(hours=1)
+        if end_time is None:
+            end_time = datetime.now()
+            
+        try:
+            total_duration = (end_time - start_time).total_seconds()
+        except (TypeError, AttributeError):
+            total_duration = 3600.0  # Default to 1 hour
+            
         pages_per_second = successful_pages / total_duration if total_duration > 0 else 0
         
         # Content analysis
@@ -308,19 +464,23 @@ class AnalyticsEngine:
         
         # Error analysis
         error_summary = Counter(e['error_type'] for e in errors)
-        error_rate = failed_pages / total_pages if total_pages > 0 else 0
+        # Calculate error rate like CLI analyze: pages with status_code >= 400 OR error_message
+        error_pages = sum(1 for p in pages if (p.get('status_code', 0) >= 400) or p.get('error_message'))
+        error_rate = (error_pages / total_pages) if total_pages > 0 else 0
         
-        # Quality metrics
-        quality_scores = [p['quality_score'] for p in pages if p.get('quality_score') is not None]
+        # Quality metrics with type conversion
+        quality_scores = [to_float(p.get('quality_score')) for p in pages if p.get('quality_score') is not None]
+        quality_scores = [qs for qs in quality_scores if qs > 0]  # Filter out zero/invalid values
         average_quality_score = statistics.mean(quality_scores) if quality_scores else 0.0
         
-        # Readability distribution
-        readability_scores = [p['readability_score'] for p in pages if p.get('readability_score') is not None]
+        # Readability distribution with type conversion
+        readability_scores = [to_float(p.get('readability_score')) for p in pages if p.get('readability_score') is not None]
+        readability_scores = [rs for rs in readability_scores if rs > 0]  # Filter out zero/invalid values
         readability_dist = self._categorize_readability(readability_scores)
         
         return CrawlAnalytics(
-            session_id=session_info['session_id'],
-            session_name=session_info['name'],
+            session_id=session_info.get('session_id') or session_info.get('id', 'unknown'),
+            session_name=session_info.get('name', 'Unknown Session'),
             total_pages=total_pages,
             successful_pages=successful_pages,
             failed_pages=failed_pages,

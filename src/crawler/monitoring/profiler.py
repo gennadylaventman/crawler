@@ -608,8 +608,6 @@ class CodeProfiler:
 
 # Global profiler instances
 _performance_profiler: Optional[PerformanceProfiler] = None
-_resource_monitor: Optional[SystemResourceMonitor] = None
-_code_profiler: Optional[CodeProfiler] = None
 
 
 def get_performance_profiler() -> PerformanceProfiler:
@@ -618,39 +616,6 @@ def get_performance_profiler() -> PerformanceProfiler:
     if _performance_profiler is None:
         _performance_profiler = PerformanceProfiler()
     return _performance_profiler
-
-
-def get_resource_monitor() -> SystemResourceMonitor:
-    """Get global resource monitor instance."""
-    global _resource_monitor
-    if _resource_monitor is None:
-        _resource_monitor = SystemResourceMonitor()
-    return _resource_monitor
-
-
-def get_code_profiler() -> CodeProfiler:
-    """Get global code profiler instance."""
-    global _code_profiler
-    if _code_profiler is None:
-        _code_profiler = CodeProfiler()
-    return _code_profiler
-
-
-# Convenience decorators
-def profile_function(name: Optional[str] = None, **metadata):
-    """Decorator to profile function execution."""
-    profiler = get_performance_profiler()
-    function_profiler = FunctionProfiler(profiler)
-    return function_profiler(name, **metadata)
-
-
-# Context managers
-@contextmanager
-def profile_operation(name: str, **metadata):
-    """Context manager for profiling operations."""
-    profiler = get_performance_profiler()
-    with profiler.profile(name, **metadata):
-        yield
 
 
 @asynccontextmanager

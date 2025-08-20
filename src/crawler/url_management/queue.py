@@ -236,10 +236,6 @@ class URLQueue:
         Returns:
             QueuedURL or None if timeout
         """
-        print(f"🔍 DEBUG: get_with_rate_limit called with domain_delay={domain_delay}, timeout={timeout}")
-        print(f"🔍 DEBUG: Queue size at start: {self.size()}")
-        print(f"🔍 DEBUG: Queue empty at start: {self.empty()}")
-        print(f"🔍 DEBUG: Queue stats at start: {self.get_stats()}")
         
         start_time = time.time()
         iteration = 0
@@ -249,11 +245,9 @@ class URLQueue:
         
         while iteration < max_iterations:
             iteration += 1
-            print(f"🔍 DEBUG: get_with_rate_limit loop iteration {iteration}/{max_iterations}, elapsed={time.time() - start_time:.2f}s")
             
             # Check timeout
             if timeout and (time.time() - start_time) >= timeout:
-                print(f"🔍 DEBUG: get_with_rate_limit timeout reached ({timeout}s)")
                 return None
             
             # Get next URL
@@ -261,32 +255,20 @@ class URLQueue:
             if timeout:
                 remaining_timeout = timeout - (time.time() - start_time)
                 if remaining_timeout <= 0:
-                    print(f"🔍 DEBUG: get_with_rate_limit no remaining timeout")
                     return None
             
-            print(f"🔍 DEBUG: About to call self.get() with timeout={min(1.0, remaining_timeout) if remaining_timeout else 1.0}")
-            print(f"🔍 DEBUG: Queue size before get(): {self.size()}")
             
             queued_url = await self.get(timeout=min(1.0, remaining_timeout) if remaining_timeout else 1.0)
             
-            print(f"🔍 DEBUG: self.get() returned: {queued_url}")
-            print(f"🔍 DEBUG: Queue size after get(): {self.size()}")
             
             if not queued_url:
                 consecutive_empty_gets += 1
-                print(f"🔍 DEBUG: No URL from queue (consecutive empty: {consecutive_empty_gets}/{max_consecutive_empty})")
-                print(f"🔍 DEBUG: Queue empty: {self.empty()}, Queue size: {self.size()}")
-                print(f"🔍 DEBUG: Pending URLs: {len(self._pending_urls)}")
                 
                 if self.empty():
-                    print(f"🔍 DEBUG: Queue is truly empty, returning None")
                     return None
                 
                 if consecutive_empty_gets >= max_consecutive_empty:
-                    print(f"🔍 DEBUG: Too many consecutive empty gets, assuming queue is stuck")
                     return None
-                
-                print(f"🔍 DEBUG: Queue not empty but get() returned None, sleeping 0.1s and continuing")
                 await asyncio.sleep(0.1)
                 continue
             
@@ -295,41 +277,30 @@ class URLQueue:
             
             # Check domain rate limit
             domain = queued_url.domain
-            print(f"🔍 DEBUG: Checking rate limit for domain: {domain}")
             
             if domain:
                 last_access = self._domain_last_access.get(domain, 0)
                 time_since_last = time.time() - last_access
-                print(f"🔍 DEBUG: Domain {domain} last_access={last_access}, time_since_last={time_since_last:.2f}s, domain_delay={domain_delay}")
                 
                 if time_since_last < domain_delay:
                     # Need to wait - check if we have enough time left
                     wait_time = domain_delay - time_since_last
-                    print(f"🔍 DEBUG: Rate limit hit, need to wait {wait_time:.2f}s")
                     
                     if timeout:
                         remaining_time = timeout - (time.time() - start_time)
-                        print(f"🔍 DEBUG: Remaining timeout: {remaining_time:.2f}s, wait_time: {wait_time:.2f}s")
                         if wait_time > remaining_time:
                             # Not enough time left, put URL back and return None (timeout)
-                            print(f"🔍 DEBUG: Not enough time left, putting URL back and returning None")
-                            print(f"🔍 DEBUG: About to call _put_back_url for: {queued_url.url}")
                             await self._put_back_url(queued_url)
-                            print(f"🔍 DEBUG: _put_back_url completed, queue size now: {self.size()}")
                             return None
                     
-                    print(f"🔍 DEBUG: Sleeping for rate limit: {wait_time:.2f}s")
                     await asyncio.sleep(wait_time)
                     
                     # Update the domain access time after waiting
                     self._domain_last_access[domain] = time.time()
-                    print(f"🔍 DEBUG: Updated domain access time for {domain}")
             
-            print(f"🔍 DEBUG: Returning URL: {queued_url.url}")
             return queued_url
         
         # If we reach here, we've hit the max iterations
-        print(f"🚨 DEBUG: get_with_rate_limit hit max iterations ({max_iterations}), returning None")
         return None
     
     async def _put_back_url(self, queued_url: QueuedURL) -> None:

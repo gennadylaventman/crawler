@@ -57,8 +57,8 @@ This document outlines the architecture for a large-scale web crawler system des
 ### 5. Monitoring and Analytics
 - **Real-time Metrics**: Pages crawled, errors, performance stats
 - **Performance Monitoring**: Response times, memory usage, CPU utilization
-- **Analytics Engine**: Word frequency analysis, content insights
-- **Reporting**: Automated report generation with visualizations
+- **Analytics Engine**: Word frequency analysis
+- **Reporting**: Automated report generation
 
 ### 6. Configuration Management
 - **Configurable Parameters**:
@@ -67,7 +67,7 @@ This document outlines the architecture for a large-scale web crawler system des
   - Rate limiting settings
   - Database connection parameters
   - Content filtering rules
-  - **Persistent Queue Settings**: Enable/disable persistent queues and configure sync intervals
+  - **Persistent Queue Settings**: Enable/disable persistent queues
 
 ## System Flow Diagram
 
@@ -150,10 +150,8 @@ graph LR
 ### Scalability Features
 1. **Asynchronous Processing**: Handle thousands of concurrent requests
 2. **Database Optimization**: Proper indexing and query optimization
-3. **Memory Management**: Efficient data structures and garbage collection
-4. **Connection Pooling**: Reuse HTTP and database connections
-5. **Batch Processing**: Bulk database operations for better performance
-6. **Persistent Queue Optimization**: Background sync workers and optimized database operations
+3. **Connection Pooling**: Reuse HTTP and database connections
+4. **Persistent Queue Optimization**: Background sync workers and optimized database operations
 
 ### Resource Management
 1. **Rate Limiting**: Respect server resources and avoid being blocked
@@ -187,23 +185,6 @@ graph LR
 3. **SSL/TLS Support**: Secure HTTPS connections
 4. **Error Handling**: Graceful handling of various HTTP errors
 
-## Monitoring and Observability
-1. **Real-time Dashboards**: Live crawling statistics
-2. **Performance Metrics**: Response times, throughput, error rates
-3. **Resource Utilization**: CPU, memory, network usage
-4. **Alert System**: Notifications for critical issues
-5. **Queue Health Monitoring**:
-   - Queue size and processing rates
-   - Stuck URL detection and recovery
-   - Session-based queue statistics
-   - Bottleneck analysis and performance insights
-   - Health score calculation based on queue metrics
-6. **Persistent Queue Metrics**:
-   - Database connection pool utilization
-   - Queue synchronization performance
-   - Recovery operation statistics
-   - Cleanup operation efficiency
-
 ## Technology Stack Summary
 - **Language**: Python 3.9+
 - **Async Framework**: asyncio
@@ -215,19 +196,5 @@ graph LR
   - **Persistent**: PostgreSQL-backed with ACID compliance
   - **Factory Pattern**: Configurable queue implementation selection
 - **Monitoring**: Custom metrics with optional Prometheus integration
-- **Visualization**: matplotlib/plotly for reports
 - **Configuration**: YAML/JSON configuration files with environment variable support
-- **Testing**: pytest with async support
 - **CLI Tools**: Queue recovery and management utilities
-
-## Deployment Architecture
-- **Containerization**: Docker for easy deployment
-- **Database**: PostgreSQL instance (local or cloud)
-- **Configuration**: Environment-based configuration with persistent queue settings
-- **Logging**: Structured logging with rotation
-- **Monitoring**: Built-in metrics collection and reporting
-- **Queue Management**:
-  - Automated queue recovery on startup
-  - Background cleanup processes
-  - Health monitoring and alerting
-  - CLI tools for queue administration

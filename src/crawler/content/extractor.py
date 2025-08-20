@@ -7,7 +7,6 @@ from typing import Dict, List, Optional, Any
 from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup, Comment
-from bs4.element import NavigableString
 
 from crawler.utils.exceptions import ContentError
 
@@ -421,42 +420,6 @@ class ContentExtractor:
                 content = tag.get('content')
                 if name and content:
                     metadata[name] = content.strip()
-    
-    def get_content_statistics(self, html: str) -> Dict[str, Any]:
-        """Get statistics about HTML content."""
-        try:
-            soup = BeautifulSoup(html, 'lxml')
-            
-            # Remove unwanted elements for accurate counting
-            self._remove_unwanted_elements(soup)
-            
-            stats = {
-                'html_size': len(html),
-                'total_elements': len(soup.find_all()),
-                'text_elements': len(soup.find_all(text=True)),
-                'link_count': len(soup.find_all('a', href=True)),
-                'image_count': len(soup.find_all('img')),
-                'form_count': len(soup.find_all('form')),
-                'table_count': len(soup.find_all('table')),
-                'list_count': len(soup.find_all(['ul', 'ol'])),
-                'heading_count': len(soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])),
-                'paragraph_count': len(soup.find_all('p')),
-            }
-            
-            # Calculate text-to-HTML ratio
-            text = soup.get_text()
-            stats['text_length'] = len(text)
-            stats['text_to_html_ratio'] = len(text) / len(html) if html else 0
-            
-            # Count words
-            words = text.split()
-            stats['word_count'] = len(words)
-            stats['unique_words'] = len(set(word.lower() for word in words))
-            
-            return stats
-            
-        except Exception as e:
-            return {'error': str(e)}
     
     def _normalize_path(self, path: str) -> str:
         """Normalize URL path."""

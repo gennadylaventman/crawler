@@ -95,54 +95,6 @@ class CrawlerLoggerAdapter(logging.LoggerAdapter):
         new_extra.update(context)
         return CrawlerLoggerAdapter(self.logger, new_extra)
 
-
-class PerformanceLogger:
-    """
-    Performance-optimized logger for high-frequency operations.
-    """
-    
-    def __init__(self, logger: logging.Logger, batch_size: int = 100):
-        self.logger = logger
-        self.batch_size = batch_size
-        self._batch = []
-        self._enabled = logger.isEnabledFor(logging.INFO)
-    
-    def log_batch(self, level: int, messages: list) -> None:
-        """Log multiple messages in batch."""
-        if not self._enabled:
-            return
-        
-        for msg in messages:
-            if isinstance(msg, dict):
-                self.logger.log(level, msg.get('message', ''), extra=msg.get('extra', {}))
-            else:
-                self.logger.log(level, str(msg))
-    
-    def add_to_batch(self, level: int, message: str, **extra) -> None:
-        """Add message to batch for later logging."""
-        if not self._enabled:
-            return
-        
-        self._batch.append({
-            'level': level,
-            'message': message,
-            'extra': extra
-        })
-        
-        if len(self._batch) >= self.batch_size:
-            self.flush_batch()
-    
-    def flush_batch(self) -> None:
-        """Flush accumulated batch messages."""
-        if not self._batch:
-            return
-        
-        for item in self._batch:
-            self.logger.log(item['level'], item['message'], extra=item['extra'])
-        
-        self._batch.clear()
-
-
 class LoggerManager:
     """
     Centralized logger management for the crawler system.
@@ -272,12 +224,7 @@ class LoggerManager:
             self._loggers[name] = logger
         
         return CrawlerLoggerAdapter(self._loggers[name], context)
-    
-    def get_performance_logger(self, name: str, batch_size: int = 100) -> PerformanceLogger:
-        """Get performance-optimized logger."""
-        logger = self.get_logger(name).logger
-        return PerformanceLogger(logger, batch_size)
-    
+        
     def set_log_level(self, logger_name: str, level: Union[str, int]) -> None:
         """Set log level for specific logger."""
         if isinstance(level, str):
@@ -359,25 +306,6 @@ def get_logger(name: str, **context) -> CrawlerLoggerAdapter:
     return _logger_manager.get_logger(name, **context)
 
 
-def get_performance_logger(name: str, batch_size: int = 100) -> PerformanceLogger:
-    """
-    Get performance-optimized logger.
-    
-    Args:
-        name: Logger name
-        batch_size: Batch size for performance logging
-        
-    Returns:
-        PerformanceLogger instance
-    """
-    global _logger_manager
-    
-    if _logger_manager is None:
-        _logger_manager = LoggerManager()
-    
-    return _logger_manager.get_performance_logger(name, batch_size)
-
-
 @contextmanager
 def log_execution_time(logger: logging.Logger, operation: str, level: int = logging.INFO):
     """
@@ -409,29 +337,6 @@ def log_execution_time(logger: logging.Logger, operation: str, level: int = logg
             f"Completed {operation} in {duration:.3f}s",
             extra={'operation': operation, 'duration': duration}
         )
-
-
-class LoggingMixin:
-    """
-    Mixin class to add logging capabilities to other classes.
-    """
-    
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._logger = None
-    
-    @property
-    def logger(self) -> CrawlerLoggerAdapter:
-        """Get logger for this class."""
-        if self._logger is None:
-            class_name = self.__class__.__name__.lower()
-            self._logger = get_logger(class_name, class_name=self.__class__.__name__)
-        return self._logger
-    
-    def log_with_context(self, level: int, message: str, **context) -> None:
-        """Log message with additional context."""
-        self.logger.log(level, message, extra=context)
-
 
 # Convenience functions for common log levels
 def debug(message: str, logger_name: str = 'main', **context) -> None:

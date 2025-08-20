@@ -6,11 +6,8 @@ including charts, graphs, and interactive visualizations.
 """
 
 import json
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Tuple
 from datetime import datetime
-from pathlib import Path
-import base64
-from io import BytesIO
 
 from crawler.reporting.analytics import CrawlAnalytics
 from crawler.utils.exceptions import AnalyticsError
