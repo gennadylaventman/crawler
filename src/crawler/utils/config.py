@@ -168,7 +168,7 @@ class ConfigManager:
                 "rate_limit_delay": 1.0,
                 "request_timeout": 30,
                 "max_retries": 3,
-                "enable_persistent_queue": False,
+                "enable_persistent_queue": True,
                 "queue_max_retries": 3
             },
             "content": {

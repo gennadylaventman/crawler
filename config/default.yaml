@@ -37,8 +37,6 @@ default:
     min_text_length: 100
     max_words_per_page: 50000
     chunk_size: 8192
-    enable_language_detection: true
-    enable_readability_analysis: true
 
   session_name: "debug_crawl"
   start_urls: []
@@ -214,36 +212,3 @@ development:
       "Connection": "keep-alive"
       "Upgrade-Insecure-Requests": "1"
     
-    # SSL/TLS settings
-    ssl:
-      verify_certificates: true
-      ssl_context: null
-    
-    # Proxy settings (if needed)
-    proxy:
-      enabled: false
-      http_proxy: null
-      https_proxy: null
-
-  # Development-specific settings
-  development:
-    # Debug features
-    debug:
-      save_raw_html: true
-      save_request_logs: true
-      verbose_errors: true
-    
-    # Testing
-    testing:
-      mock_requests: false
-      test_data_dir: "tests/data"
-      fixtures_dir: "tests/fixtures"
-    
-    # Hot reloading
-    hot_reload: true
-    
-    # Development server
-    dev_server:
-      enabled: false
-      port: 8000
-      host: "localhost"
