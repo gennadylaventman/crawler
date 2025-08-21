@@ -508,6 +508,59 @@ python src/crawler/cli.py analytics \
   -o "analytics_results.json"
 ```
 
+## Automated Session ID Extraction
+
+When running crawls followed by reports, you can automatically extract the session ID using Linux shell tools:
+
+### Method 1: Command Substitution with grep and awk
+```bash
+# Extract session ID and run report in one command
+SESSION_ID=$(python src/crawler/cli.py crawl --url https://www.example.com --depth 2 --workers 5 --pages 1000 2>&1 | grep "Session ID:" | awk '{print $NF}')
+python src/crawler/cli.py report -s "$SESSION_ID" -f html -o report.html
+```
+
+### Method 2: Using sed to extract the session ID
+```bash
+# Using sed to extract the session ID
+SESSION_ID=$(python src/crawler/cli.py crawl --url https://www.example.com --depth 2 --workers 5 --pages 1000 2>&1 | sed -n 's/.*Session ID: \([a-f0-9]*\).*/\1/p')
+python src/crawler/cli.py report -s "$SESSION_ID" -f html -o report.html
+```
+
+### Method 3: One-liner with pipe and command substitution
+```bash
+# One-liner approach
+python src/crawler/cli.py crawl --url https://www.example.com --depth 2 --workers 5 --pages 1000 2>&1 | tee /tmp/crawl_output.log && python src/crawler/cli.py report -s "$(grep 'Session ID:' /tmp/crawl_output.log | awk '{print $NF}')" -f html -o report.html
+```
+
+### Method 4: Using grep with Perl-compatible regex
+```bash
+# Using grep with -oP for Perl regex (if available)
+SESSION_ID=$(python src/crawler/cli.py crawl --url https://www.example.com --depth 2 --workers 5 --pages 1000 2>&1 | grep -oP 'Session ID: \K[a-f0-9]+')
+python src/crawler/cli.py report -s "$SESSION_ID" -f html -o report.html
+```
+
+### Method 5: Automated Script
+Use the provided [`run_crawl_and_report.sh`](run_crawl_and_report.sh) script for fully automated crawling and reporting:
+
+```bash
+# Make the script executable (first time only)
+chmod +x run_crawl_and_report.sh
+
+# Run with default settings
+./run_crawl_and_report.sh
+
+# Run with custom parameters
+./run_crawl_and_report.sh "https://example.com" 3 10 500 "pdf" "my_report.pdf"
+
+# Parameters: URL DEPTH WORKERS PAGES REPORT_FORMAT OUTPUT_FILE
+```
+
+The script automatically:
+- Runs the crawler with specified parameters
+- Extracts the session ID using multiple fallback methods
+- Generates the report in the specified format
+- Provides detailed progress information and error handling
+
 ## Database Schema
 
 The system uses a comprehensive PostgreSQL schema with the following main tables:

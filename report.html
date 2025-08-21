@@ -1,0 +1,108 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crawler Analytics Dashboard - cli_crawl</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f8f9fa; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header { text-align: center; margin-bottom: 30px; padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .metric-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; }
+        .metric-value { font-size: 2em; font-weight: bold; color: #007bff; }
+        .metric-label { color: #6c757d; margin-top: 5px; }
+        .chart-container { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .chart-title { font-size: 1.2em; font-weight: bold; margin-bottom: 15px; color: #343a40; }
+        .chart-wrapper { position: relative; height: 400px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6; }
+        th { background-color: #f8f9fa; font-weight: bold; }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Crawler Analytics Dashboard</h1>
+            <h2>cli_crawl</h2>
+            <p>Generated on 2025-08-21T19:26:47.666486</p>
+        </div>
+        
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-value">25</div>
+                <div class="metric-label">Total Pages</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value success">96.0%</div>
+                <div class="metric-label">Success Rate</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">1.40</div>
+                <div class="metric-label">Pages/Second</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">489ms</div>
+                <div class="metric-label">Avg Response Time</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">2,800</div>
+                <div class="metric-label">Total Words</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">4</div>
+                <div class="metric-label">Unique Domains</div>
+            </div>
+        </div>
+        
+        <div class="chart-container">
+            <div class="chart-title">Performance Metrics</div>
+            <div class="chart-wrapper">
+                <canvas id="performanceChart"></canvas>
+            </div>
+        </div>
+        
+        <div class="chart-container">
+            <div class="chart-title">Top Words</div>
+            <table>
+                <thead>
+                    <tr><th>Word</th><th>Frequency</th><th>Percentage</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>or</td><td>280</td><td>10.0%</td></tr><tr><td>information</td><td>131</td><td>4.7%</td></tr><tr><td>any</td><td>129</td><td>4.6%</td></tr><tr><td>our</td><td>111</td><td>4.0%</td></tr><tr><td>root</td><td>110</td><td>3.9%</td></tr><tr><td>zone</td><td>101</td><td>3.6%</td></tr><tr><td>we</td><td>100</td><td>3.6%</td></tr><tr><td>iana</td><td>98</td><td>3.5%</td></tr><tr><td>you</td><td>96</td><td>3.4%</td></tr><tr><td>not</td><td>79</td><td>2.8%</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <script>
+        // Performance Chart
+        const performanceCtx = document.getElementById('performanceChart').getContext('2d');
+        new Chart(performanceCtx, {
+            type: 'bar',
+            data: {
+                labels: ["Average", "Median", "95th Percentile"],
+                datasets: [{
+                    label: 'Response Time (ms)',
+                    data: [488.57228, 570241.5, 1243892.2999999996],
+                    backgroundColor: ['#007bff', '#28a745', '#ffc107']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
+            
