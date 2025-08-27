@@ -291,7 +291,7 @@ class ContentExtractor:
         text_blocks = []
         for element in soup.find_all(self.block_elements):
             text = element.get_text(strip=True)
-            if len(text) > 100:  # Minimum text length
+            if len(text) > 50:  # Minimum text length
                 text_blocks.append((element, len(text)))
         
         if text_blocks:

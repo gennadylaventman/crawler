@@ -7,19 +7,13 @@ and convenience methods used throughout the crawler system.
 
 import hashlib
 import re
-import time
-import asyncio
-from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional, Union, Callable, TypeVar
+from typing import Dict, List, Any, Union
 from urllib.parse import urlparse, urljoin
 from pathlib import Path
 import json
 import yaml
 
 from crawler.utils.exceptions import CrawlerError
-from crawler.monitoring.logger import get_logger
-
-T = TypeVar('T')
 
 
 class URLUtils:
@@ -133,24 +127,6 @@ class TextUtils:
         
         return text[:max_length - len(suffix)] + suffix
     
-    @staticmethod
-    def count_sentences(text: str) -> int:
-        """Count sentences in text."""
-        if not text:
-            return 0
-        
-        # Simple sentence counting
-        sentences = re.split(r'[.!?]+', text)
-        return len([s for s in sentences if s.strip()])
-    
-    @staticmethod
-    def estimate_reading_time(text: str, words_per_minute: int = 200) -> int:
-        """Estimate reading time in minutes."""
-        if not text:
-            return 0
-        
-        word_count = len(TextUtils.extract_words(text))
-        return max(1, word_count // words_per_minute)
 
 
 class DataUtils:
@@ -171,27 +147,6 @@ class DataUtils:
         """Calculate percentage with safe division."""
         return DataUtils.safe_divide(part * 100, total, 0.0)
     
-    @staticmethod
-    def format_bytes(bytes_value: int) -> str:
-        """Format bytes in human-readable format."""
-        value = float(bytes_value)
-        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
-            if value < 1024.0:
-                return f"{value:.1f} {unit}"
-            value /= 1024.0
-        return f"{value:.1f} PB"
-    
-    @staticmethod
-    def format_duration(seconds: float) -> str:
-        """Format duration in human-readable format."""
-        if seconds < 60:
-            return f"{seconds:.1f}s"
-        elif seconds < 3600:
-            minutes = seconds / 60
-            return f"{minutes:.1f}m"
-        else:
-            hours = seconds / 3600
-            return f"{hours:.1f}h"
     
     @staticmethod
     def merge_dictionaries(*dicts: Dict[str, Any]) -> Dict[str, Any]:
@@ -283,235 +238,3 @@ class FileUtils:
             return backup_path
         except Exception as e:
             raise CrawlerError(f"Failed to backup file {file_path}: {e}")
-
-
-class AsyncUtils:
-    """Utility functions for async operations."""
-    
-    @staticmethod
-    async def run_with_timeout(coro, timeout: float, default=None):
-        """Run coroutine with timeout, returning default on timeout."""
-        try:
-            return await asyncio.wait_for(coro, timeout=timeout)
-        except asyncio.TimeoutError:
-            return default
-    
-    @staticmethod
-    async def gather_with_limit(coroutines: List, limit: int = 10):
-        """Run coroutines with concurrency limit."""
-        semaphore = asyncio.Semaphore(limit)
-        
-        async def limited_coro(coro):
-            async with semaphore:
-                return await coro
-        
-        limited_coroutines = [limited_coro(coro) for coro in coroutines]
-        return await asyncio.gather(*limited_coroutines, return_exceptions=True)
-    
-    @staticmethod
-    async def retry_async(
-        func: Callable,
-        max_retries: int = 3,
-        delay: float = 1.0,
-        backoff_factor: float = 2.0,
-        exceptions: tuple = (Exception,)
-    ):
-        """Retry async function with exponential backoff."""
-        last_exception = None
-        
-        for attempt in range(max_retries + 1):
-            try:
-                return await func()
-            except exceptions as e:
-                last_exception = e
-                
-                if attempt < max_retries:
-                    wait_time = delay * (backoff_factor ** attempt)
-                    await asyncio.sleep(wait_time)
-                else:
-                    break
-        
-        if last_exception:
-            raise last_exception
-        else:
-            raise CrawlerError("Retry failed with no exception recorded")
-
-class ConfigUtils:
-    """Utility functions for configuration management."""
-    
-    @staticmethod
-    def load_config_file(file_path: Union[str, Path]) -> Dict[str, Any]:
-        """Load configuration from file (JSON or YAML)."""
-        path = Path(file_path)
-        
-        if not path.exists():
-            raise CrawlerError(f"Configuration file not found: {file_path}")
-        
-        if path.suffix.lower() in ['.yml', '.yaml']:
-            return FileUtils.load_yaml(path)
-        elif path.suffix.lower() == '.json':
-            return FileUtils.load_json(path)
-        else:
-            raise CrawlerError(f"Unsupported configuration file format: {path.suffix}")
-    
-    @staticmethod
-    def merge_configs(*configs: Dict[str, Any]) -> Dict[str, Any]:
-        """Merge multiple configuration dictionaries."""
-        result = {}
-        
-        for config in configs:
-            if not config:
-                continue
-            
-            for key, value in config.items():
-                if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-                    # Recursively merge nested dictionaries
-                    result[key] = ConfigUtils.merge_configs(result[key], value)
-                else:
-                    result[key] = value
-        
-        return result
-    
-    @staticmethod
-    def apply_environment_overrides(config: Dict[str, Any], prefix: str = 'CRAWLER_') -> Dict[str, Any]:
-        """Apply environment variable overrides to configuration."""
-        import os
-        
-        result = config.copy()
-        
-        for env_key, env_value in os.environ.items():
-            if env_key.startswith(prefix):
-                # Convert environment variable name to config key
-                config_key = env_key[len(prefix):].lower().replace('_', '.')
-                
-                # Set nested configuration value
-                ConfigUtils._set_nested_value(result, config_key, env_value)
-        
-        return result
-    
-    @staticmethod
-    def _set_nested_value(config: Dict[str, Any], key_path: str, value: str) -> None:
-        """Set nested configuration value using dot notation."""
-        keys = key_path.split('.')
-        current = config
-        
-        for key in keys[:-1]:
-            if key not in current:
-                current[key] = {}
-            current = current[key]
-        
-        # Convert string value to appropriate type
-        final_key = keys[-1]
-        current[final_key] = ConfigUtils._convert_env_value(value)
-    
-    @staticmethod
-    def _convert_env_value(value: str) -> Union[str, int, float, bool]:
-        """Convert environment variable string to appropriate type."""
-        # Boolean values
-        if value.lower() in ('true', 'yes', '1', 'on'):
-            return True
-        elif value.lower() in ('false', 'no', '0', 'off'):
-            return False
-        
-        # Numeric values
-        try:
-            if '.' in value:
-                return float(value)
-            else:
-                return int(value)
-        except ValueError:
-            pass
-        
-        # String value
-        return value
-
-
-class PerformanceUtils:
-    """Utility functions for performance monitoring and optimization."""
-    
-    @staticmethod
-    def measure_memory_usage() -> Dict[str, float]:
-        """Measure current memory usage."""
-        try:
-            import psutil
-            process = psutil.Process()
-            memory_info = process.memory_info()
-            
-            return {
-                'rss_mb': memory_info.rss / 1024 / 1024,
-                'vms_mb': memory_info.vms / 1024 / 1024,
-                'percent': process.memory_percent()
-            }
-        except Exception:
-            return {'rss_mb': 0, 'vms_mb': 0, 'percent': 0}
-    
-    @staticmethod
-    def measure_cpu_usage() -> float:
-        """Measure current CPU usage."""
-        try:
-            import psutil
-            return psutil.cpu_percent(interval=0.1)
-        except Exception:
-            return 0.0
-    
-    @staticmethod
-    async def profile_async_function(func: Callable, *args, **kwargs) -> Dict[str, Any]:
-        """Profile async function execution."""
-        start_time = time.perf_counter()
-        start_memory = PerformanceUtils.measure_memory_usage()
-        
-        try:
-            result = await func(*args, **kwargs)
-            success = True
-            error = None
-        except Exception as e:
-            result = None
-            success = False
-            error = str(e)
-        
-        end_time = time.perf_counter()
-        end_memory = PerformanceUtils.measure_memory_usage()
-        
-        return {
-            'result': result,
-            'success': success,
-            'error': error,
-            'duration': end_time - start_time,
-            'memory_start_mb': start_memory['rss_mb'],
-            'memory_end_mb': end_memory['rss_mb'],
-            'memory_delta_mb': end_memory['rss_mb'] - start_memory['rss_mb']
-        }
-
-
-class LoggingUtils:
-    """Utility functions for logging operations."""
-    
-    @staticmethod
-    def create_log_context(
-        session_id: Optional[str] = None,
-        worker_id: Optional[int] = None,
-        url: Optional[str] = None,
-        **extra
-    ) -> Dict[str, Any]:
-        """Create logging context dictionary."""
-        context = {}
-        
-        if session_id:
-            context['session_id'] = session_id
-        if worker_id is not None:
-            context['worker_id'] = worker_id
-        if url:
-            context['url'] = url
-            context['domain'] = URLUtils.get_domain(url)
-        
-        context.update(extra)
-        return context
-    
-    @staticmethod
-    def format_log_message(message: str, **context) -> str:
-        """Format log message with context."""
-        if not context:
-            return message
-        
-        context_str = " | ".join(f"{k}={v}" for k, v in context.items())
-        return f"{message} | {context_str}"
