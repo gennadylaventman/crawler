@@ -11,7 +11,7 @@ from datetime import datetime
 
 from crawler.reporting.analytics import CrawlAnalytics
 from crawler.utils.exceptions import AnalyticsError
-from crawler.monitoring.logger import get_logger
+from crawler.utils.logging import get_logger
 
 
 class ChartGenerator:

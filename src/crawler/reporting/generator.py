@@ -16,7 +16,7 @@ import asyncio
 from crawler.reporting.analytics import AnalyticsEngine, CrawlAnalytics
 from crawler.reporting.visualizer import DataVisualizer
 from crawler.utils.exceptions import AnalyticsError
-from crawler.monitoring.logger import get_logger
+from crawler.utils.logging import get_logger
 
 
 class ReportFormat(str, Enum):

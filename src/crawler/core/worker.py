@@ -6,7 +6,6 @@ in the crawler's async worker pool.
 """
 
 import asyncio
-import logging
 import time
 from typing import Dict, Any, Optional, List
 from urllib.parse import urljoin, urlparse
@@ -22,7 +21,10 @@ from crawler.url_management.validator import URLValidator
 from crawler.monitoring.profiler import get_performance_profiler, async_profile_operation
 
 
-logger = logging.getLogger(__name__)
+from crawler.utils.logging import get_logger
+
+
+logger = get_logger('worker')
 
 
 class CrawlerWorker:

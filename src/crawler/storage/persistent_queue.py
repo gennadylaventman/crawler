@@ -17,6 +17,12 @@ if TYPE_CHECKING:
     from crawler.storage.database import DatabaseManager
 
 
+from crawler.utils.logging import get_logger
+
+
+logger = get_logger('persistent_queue')
+
+
 class PersistentURLQueue(URLQueue):
     """
     PostgreSQL-backed persistent URL queue with all features of URLQueue.
@@ -102,8 +108,6 @@ class PersistentURLQueue(URLQueue):
             await self._sync_to_database()
                 
         except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
             logger.error(f"Error closing persistent queue: {e}")
     
     async def put(self, url: str, depth: int, priority: int = 0,
@@ -184,8 +188,6 @@ class PersistentURLQueue(URLQueue):
 
                 recovered_sessions = await self.recover_interrupted_session()
                 
-                import logging
-                logger = logging.getLogger(__name__)
                 logger.info(f"Loaded {len(pending_urls) + recovered_sessions} pending URLs and {len(visited_urls)} visited URLs from database")
                 
         except Exception as e:
@@ -243,8 +245,6 @@ class PersistentURLQueue(URLQueue):
                     
         except Exception as e:
             self._persistence_stats['persistence_errors'] += 1
-            import logging
-            logger = logging.getLogger(__name__)
             logger.error(f"Failed to sync queue to database: {e}")
     
     async def _sync_worker(self) -> None:
@@ -290,13 +290,9 @@ class PersistentURLQueue(URLQueue):
                 self._persistence_stats['cleanup_operations'] += 1
                 self._persistence_stats['last_cleanup_at'] = time.time()
                 
-                import logging
-                logger = logging.getLogger(__name__)
                 logger.debug(f"Cleaned up old queue entries: {result}")
                 
         except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
             logger.error(f"Failed to cleanup old queue entries: {e}")
     
     async def mark_url_processing(self, queued_url: QueuedURL) -> None:
@@ -327,8 +323,6 @@ class PersistentURLQueue(URLQueue):
                     'processing'
                 )
         except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
             logger.error(f"Failed to mark URL as processing: {e}")
     
     async def mark_url_completed(self, queued_url: QueuedURL) -> None:
@@ -344,8 +338,6 @@ class PersistentURLQueue(URLQueue):
                     WHERE session_id = $1 AND url_hash = $2
                 """, uuid.UUID(self.session_id), queued_url.url_hash)
         except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
             logger.error(f"Failed to mark URL as completed: {e}")
     
     async def mark_url_failed(self, queued_url: QueuedURL, error_message: Optional[str] = None) -> None:
@@ -361,8 +353,6 @@ class PersistentURLQueue(URLQueue):
                     WHERE session_id = $1 AND url_hash = $2
                 """, uuid.UUID(self.session_id), queued_url.url_hash, error_message)
         except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
             logger.error(f"Failed to mark URL as failed: {e}")
     
     def get_persistence_stats(self) -> Dict[str, Any]:
@@ -399,15 +389,11 @@ class PersistentURLQueue(URLQueue):
                             AND updated_at < NOW()
                     """, uuid.UUID(self.session_id))
                 
-                import logging
-                logger = logging.getLogger(__name__)
                 logger.info(f"Recovered {len(interrupted_urls)} interrupted URLs")
                 
                 return len(interrupted_urls)
                 
         except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
             logger.error(f"Failed to recover interrupted session: {e}")
             return 0
     
@@ -471,8 +457,6 @@ class PersistentURLQueue(URLQueue):
                 }
                 
         except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
             logger.error(f"Failed to get queue statistics: {e}")
             return self.get_persistence_stats()
     
@@ -490,15 +474,11 @@ class PersistentURLQueue(URLQueue):
                 # Also clear in-memory state
                 await self.clear()
                 
-                import logging
-                logger = logging.getLogger(__name__)
                 logger.info(f"Cleared queue for session {self.session_id}")
                 
                 # Extract count from result string like "DELETE 123"
                 return int(result.split()[-1]) if result else 0
                 
         except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
             logger.error(f"Failed to clear session queue: {e}")
             return 0

@@ -14,7 +14,7 @@ from dataclasses import dataclass
 import statistics
 
 from crawler.utils.exceptions import AnalyticsError
-from crawler.monitoring.logger import get_logger
+from crawler.utils.logging import get_logger
 
 
 @dataclass

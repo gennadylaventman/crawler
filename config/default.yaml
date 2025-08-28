@@ -179,7 +179,7 @@ development:
     word_analysis:
       min_word_length: 2
       max_word_length: 50
-      include_stopwords: false
+      include_stopwords: true
       top_words_limit: 100
     
 

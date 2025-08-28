@@ -20,7 +20,7 @@ import io
 from pathlib import Path
 
 from crawler.utils.exceptions import CrawlerError
-from crawler.monitoring.logger import get_logger
+from crawler.utils.logging import get_logger
 
 
 @dataclass

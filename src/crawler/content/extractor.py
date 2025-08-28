@@ -11,6 +11,12 @@ from bs4 import BeautifulSoup, Comment
 from crawler.utils.exceptions import ContentError
 
 
+from crawler.utils.logging import get_logger
+
+
+logger = get_logger('extractor')
+
+
 class ContentExtractor:
     """
     HTML content extractor for text, metadata, and links.
@@ -104,8 +110,6 @@ class ContentExtractor:
                             metadata[name_str.lower()] = content_str.strip()
                 except (AttributeError, TypeError) as e:
                     # 🐛 DEBUG: Log extraction errors for diagnosis
-                    import logging
-                    logger = logging.getLogger(__name__)
                     logger.debug(f"Error extracting meta tag: {e}, meta: {meta}")
                     continue
             
@@ -204,8 +208,6 @@ class ContentExtractor:
         
         # Remove elements with display:none or visibility:hidden
         from bs4.element import Tag
-        import logging
-        logger = logging.getLogger(__name__)
         
         for element in soup.find_all(style=True):
             if isinstance(element, Tag):

@@ -3,9 +3,9 @@ Database management for the web crawler system with migration support.
 """
 
 import asyncio
+import json
 import time
 import uuid
-import json
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Tuple, TYPE_CHECKING
 from contextlib import asynccontextmanager
@@ -19,6 +19,12 @@ from crawler.storage.migrations import MigrationManager
 
 if TYPE_CHECKING:
     from crawler.core.engine import CrawlResult
+
+
+from crawler.utils.logging import get_logger
+
+
+logger = get_logger('database')
 
 
 class DatabaseManager:
@@ -701,8 +707,6 @@ class DatabaseManager:
                 # Extract count from result string like "UPDATE 123"
                 recovered_count = int(result.split()[-1]) if result else 0
                 
-                import logging
-                logger = logging.getLogger(__name__)
                 logger.info(f"Recovered {recovered_count} interrupted URLs for session {session_id}")
                 
                 return recovered_count
@@ -724,8 +728,6 @@ class DatabaseManager:
                 # Extract count from result string
                 cleaned_count = int(result.split()[-1]) if result else 0
                 
-                import logging
-                logger = logging.getLogger(__name__)
                 logger.debug(f"Cleaned up {cleaned_count} old queue entries for session {session_id}")
                 
                 return cleaned_count
@@ -744,8 +746,6 @@ class DatabaseManager:
                 # Extract count from result string
                 cleared_count = int(result.split()[-1]) if result else 0
                 
-                import logging
-                logger = logging.getLogger(__name__)
                 logger.info(f"Cleared {cleared_count} queue entries for session {session_id}")
                 
                 return cleared_count

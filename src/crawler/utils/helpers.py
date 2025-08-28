@@ -5,7 +5,6 @@ This module provides common utility functions, data processing helpers,
 and convenience methods used throughout the crawler system.
 """
 
-import hashlib
 import re
 from typing import Dict, List, Any, Union
 from urllib.parse import urlparse, urljoin
@@ -19,38 +18,6 @@ from crawler.utils.exceptions import CrawlerError
 class URLUtils:
     """Utility functions for URL processing."""
     
-    @staticmethod
-    def normalize_url(url: str) -> str:
-        """Normalize URL for consistent processing."""
-        try:
-            # Parse URL
-            parsed = urlparse(url)
-            
-            # Normalize scheme and netloc
-            scheme = parsed.scheme.lower()
-            netloc = parsed.netloc.lower()
-            
-            # Remove default ports
-            if netloc.endswith(':80') and scheme == 'http':
-                netloc = netloc[:-3]
-            elif netloc.endswith(':443') and scheme == 'https':
-                netloc = netloc[:-4]
-            
-            # Normalize path
-            path = parsed.path or '/'
-            if path != '/' and path.endswith('/'):
-                path = path[:-1]
-            
-            # Reconstruct URL
-            normalized = f"{scheme}://{netloc}{path}"
-            
-            if parsed.query:
-                normalized += f"?{parsed.query}"
-            
-            return normalized
-            
-        except Exception:
-            return url
     
     @staticmethod
     def get_domain(url: str) -> str:
@@ -73,17 +40,6 @@ class URLUtils:
         except:
             return relative_url
     
-    @staticmethod
-    def get_url_hash(url: str, algorithm: str = 'md5') -> str:
-        """Generate hash for URL."""
-        normalized_url = URLUtils.normalize_url(url)
-        
-        if algorithm == 'md5':
-            return hashlib.md5(normalized_url.encode()).hexdigest()
-        elif algorithm == 'sha256':
-            return hashlib.sha256(normalized_url.encode()).hexdigest()
-        else:
-            raise ValueError(f"Unsupported hash algorithm: {algorithm}")
 
 
 class TextUtils:

@@ -14,16 +14,21 @@ import aiohttp
 
 from crawler.utils.config import CrawlConfig
 from crawler.utils.exceptions import CrawlerError, NetworkError, ContentError
+from crawler.utils.logging import get_logger
 from crawler.monitoring.metrics import PageMetrics
 from crawler.content.processor import ContentProcessor
 from crawler.url_management.queue import URLQueue
 from crawler.url_management.robots import RobotsChecker, SitemapParser
+from crawler.url_management.validator import URLValidator
 from crawler.core.worker import WorkerPool
 from crawler.core.session import CrawlSession
 from crawler.core.queue_factory import QueueFactory
 
 if TYPE_CHECKING:
     from crawler.storage.database import DatabaseManager
+
+
+logger = get_logger('engine')
 
 
 @dataclass
@@ -66,6 +71,7 @@ class CrawlerEngine:
         self.robots_checker: Optional[RobotsChecker] = None
         self.sitemap_parser: Optional[SitemapParser] = None
         self.worker_pool: Optional[WorkerPool] = None
+        self.url_validator: Optional[URLValidator] = None
         
         # Rate limiting
         self._last_request_time: Dict[str, float] = {}
@@ -82,6 +88,8 @@ class CrawlerEngine:
     
     async def initialize(self) -> None:
         """Initialize the crawler engine."""
+        logger.info("Initializing crawler engine")
+        
         # Create HTTP session with optimized settings and increased header limits
         connector = aiohttp.TCPConnector(
             limit=self.config.crawler.max_connections,
@@ -131,6 +139,7 @@ class CrawlerEngine:
             cache_ttl=3600
         )
         self.sitemap_parser = SitemapParser()
+        self.url_validator = URLValidator()
         
         # Initialize worker pool with proper config format
         worker_config = {
@@ -152,31 +161,48 @@ class CrawlerEngine:
             pool_size=self.config.crawler.concurrent_workers
         )
         
+        logger.info("Initializing database manager")
         await self.db_manager.initialize()
+        
+        logger.info("Initializing robots checker and sitemap parser")
         await self.robots_checker._create_session()
         await self.sitemap_parser._create_session()
+        
+        logger.info(f"Starting worker pool with {self.config.crawler.concurrent_workers} workers")
         await self.worker_pool.start()
+        
+        logger.info("Crawler engine initialization completed successfully")
     
     async def cleanup(self) -> None:
         """Clean up resources."""
+        logger.info("Starting crawler engine cleanup")
+        
         if self.session:
+            logger.debug("Closing HTTP session")
             await self.session.close()
         
         # Clean up persistent queue if needed
         if self.url_queue and hasattr(self.url_queue, 'cleanup'):
+            logger.debug("Cleaning up URL queue")
             await self.url_queue.cleanup()
         
         if self.db_manager:
+            logger.debug("Closing database manager")
             await self.db_manager.close()
         
         if self.robots_checker:
+            logger.debug("Closing robots checker session")
             await self.robots_checker._close_session()
         
         if self.sitemap_parser:
+            logger.debug("Closing sitemap parser session")
             await self.sitemap_parser._close_session()
         
         if self.worker_pool:
+            logger.debug("Stopping worker pool")
             await self.worker_pool.stop()
+        
+        logger.info("Crawler engine cleanup completed")
     
     async def start_crawl(self, start_urls: List[str], session_name: str = "default") -> str:
         """
@@ -189,8 +215,11 @@ class CrawlerEngine:
         Returns:
             Session ID
         """
+        logger.info(f"Starting crawl session '{session_name}' with {len(start_urls)} start URLs")
+        
         # Create crawl session
         session_id = hashlib.md5(f"{session_name}_{time.time()}".encode()).hexdigest()
+        logger.debug(f"Generated session ID: {session_id}")
         
         self.crawl_session = CrawlSession(
             session_id=session_id,
@@ -199,35 +228,48 @@ class CrawlerEngine:
         )
         
         # Store session in database
+        logger.debug("Storing session in database")
         await self.db_manager.create_crawl_session(self.crawl_session)
         
         # Initialize URL queue using factory (after session is created)
+        queue_type = QueueFactory.get_queue_type_name(self.config)
+        logger.info(f"Initializing {queue_type} queue for session")
         self.url_queue = QueueFactory.create_queue(
             config=self.config,
             session_id=self.crawl_session.session_id,
             db_manager=self.db_manager
         )
         
-        print(f"🗄️ Queue type: {QueueFactory.get_queue_type_name(self.config)}")
-        
         # Discover sitemaps and add URLs
+        logger.info("Discovering sitemap URLs")
         await self._discover_and_add_sitemap_urls(start_urls)
         
         # Add start URLs to queue
+        logger.info(f"Adding {len(start_urls)} start URLs to queue")
         for url in start_urls:
-            await self.url_queue.put(url, depth=0, priority=10)  # High priority for start URLs
+            try:
+                # Normalize URL before adding to queue
+                normalized_url = self.url_validator.normalize_url(url)
+                await self.url_queue.put(normalized_url, depth=0, priority=10)  # High priority for start URLs
+                logger.debug(f"Normalized and queued start URL: {url} -> {normalized_url}")
+            except Exception as e:
+                logger.warning(f"Failed to normalize start URL {url}: {e}, using original URL")
+                await self.url_queue.put(url, depth=0, priority=10)
         
         # Start crawling
+        logger.info("Starting main crawl loop")
         await self._crawl_loop()
         
         # Update session status
+        logger.info("Crawl completed, updating session status")
         self.crawl_session.status = "completed"
         await self.db_manager.update_crawl_session(self.crawl_session)
         
+        logger.info(f"Crawl session '{session_name}' completed successfully")
         return session_id
     
     async def _crawl_loop(self) -> None:
-        """Main crawling loop using WorkerPool - WITH ENHANCED DEBUG LOGGING."""
+        """Main crawling loop using WorkerPool."""
         if not self.worker_pool:
             raise CrawlerError("Worker pool not initialized")
         
@@ -235,7 +277,7 @@ class CrawlerEngine:
         processed_results = 0
         pending_tasks = 0
         
-        print(f"🚀 Starting crawl loop with max_pages={self.config.crawler.max_pages}")
+        logger.info(f"Starting crawl loop with max_pages={self.config.crawler.max_pages}")
         
         # Process URLs until queue is empty or limits reached
         loop_iteration = 0
@@ -371,7 +413,8 @@ class CrawlerEngine:
                 else:
                     error_message = result.get('error', 'Processing failed')
                     await self.url_queue.mark_url_failed(queued_url, error_message)
-            except Exception:
+            except Exception as e:
+                logger.error(f"Error marking URL as failed: {e}")
                 pass
         
         # Store result in database for BOTH successful AND failed results FIRST
@@ -445,7 +488,8 @@ class CrawlerEngine:
                         word_frequencies
                     )
                 
-            except Exception:
+            except Exception as e:
+                logger.error(f"Error storing crawl result in database: {e}")
                 pass
         
         # Store error events for failed results AFTER page is stored (so we have page_id)
@@ -461,7 +505,8 @@ class CrawlerEngine:
                     operation_name='page_processing',
                     page_id=page_id  # Now we have the page_id!
                 )
-            except Exception:
+            except Exception as e:
+                logger.error(f"Error storing error event in database: {e}")
                 pass
         
         # Update session statistics
@@ -550,13 +595,21 @@ class CrawlerEngine:
     
     async def _add_links_to_queue(self, links: List[str], depth: int) -> None:
         """Add discovered links to the crawling queue."""
-        # Check each link individually
+        # Check each link individually and normalize
         urls_to_add = []
         for link in links:
             if self._should_crawl_url(link, depth):
-                urls_to_add.append((link, depth))
+                try:
+                    # Normalize URL before adding to queue
+                    normalized_link = self.url_validator.normalize_url(link)
+                    urls_to_add.append((normalized_link, depth))
+                    logger.debug(f"Normalized discovered link: {link} -> {normalized_link}")
+                except Exception as e:
+                    logger.warning(f"Failed to normalize discovered link {link}: {e}, using original URL")
+                    urls_to_add.append((link, depth))
         
         if urls_to_add:
+            logger.info(f"Adding {len(urls_to_add)} normalized links to queue at depth {depth}")
             await self.url_queue.put_batch(urls_to_add, priority=5)  # Medium priority for discovered links
     
     async def get_crawl_statistics(self) -> Dict[str, Any]:
@@ -583,10 +636,14 @@ class CrawlerEngine:
     async def _discover_and_add_sitemap_urls(self, start_urls: List[str]) -> None:
         """Discover and add URLs from sitemaps."""
         if not self.sitemap_parser:
+            logger.debug("No sitemap parser available, skipping sitemap discovery")
             return
+        
+        logger.info(f"Discovering sitemaps for {len(start_urls)} start URLs")
         
         for start_url in start_urls:
             try:
+                logger.debug(f"Checking for sitemaps at {start_url}")
                 # Get sitemaps from robots.txt
                 if self.robots_checker:
                     sitemap_urls = await self.robots_checker.get_sitemaps(start_url)
@@ -599,18 +656,30 @@ class CrawlerEngine:
                 
                 # Parse sitemaps and add URLs
                 for sitemap_url in sitemap_urls:
+                    logger.debug(f"Parsing sitemap: {sitemap_url}")
                     urls = await self.sitemap_parser.parse_sitemap(
                         sitemap_url,
                         max_urls=self.config.crawler.max_pages // 4  # Limit sitemap URLs
                     )
                     
-                    # Add sitemap URLs to queue with lower priority
-                    urls_to_add = [(url, 1) for url in urls]  # Start at depth 1
+                    # Normalize and add sitemap URLs to queue with lower priority
+                    urls_to_add = []
+                    for url in urls:
+                        try:
+                            # Normalize URL before adding to queue
+                            normalized_url = self.url_validator.normalize_url(url)
+                            urls_to_add.append((normalized_url, 1))  # Start at depth 1
+                            logger.debug(f"Normalized sitemap URL: {url} -> {normalized_url}")
+                        except Exception as e:
+                            logger.warning(f"Failed to normalize sitemap URL {url}: {e}, using original URL")
+                            urls_to_add.append((url, 1))
+                    
                     if urls_to_add:
+                        logger.info(f"Adding {len(urls_to_add)} normalized URLs from sitemap {sitemap_url}")
                         await self.url_queue.put_batch(urls_to_add, priority=3)
                         
             except Exception as e:
-                print(f"Error processing sitemaps for {start_url}: {e}")
+                logger.error(f"Error processing sitemaps for {start_url}: {e}")
     
     async def _check_robots_compliance(self, url: str) -> bool:
         """Check if URL can be crawled according to robots.txt."""
@@ -619,8 +688,9 @@ class CrawlerEngine:
         
         try:
             return await self.robots_checker.can_fetch(url)
-        except Exception:
+        except Exception as e:
             # On error, allow crawling (fail open)
+            logger.warning(f"Error checking robots.txt for {url}: {e}, allowing crawl")
             return True
     
     async def _apply_robots_delay(self, url: str) -> None:
@@ -631,7 +701,9 @@ class CrawlerEngine:
         try:
             wait_time = await self.robots_checker.should_wait_for_crawl_delay(url)
             if wait_time > 0:
+                logger.debug(f"Applying robots.txt delay of {wait_time}s for {url}")
                 await asyncio.sleep(wait_time)
-        except Exception:
+        except Exception as e:
             # On error, continue without delay
+            logger.warning(f"Error applying robots.txt delay for {url}: {e}")
             pass

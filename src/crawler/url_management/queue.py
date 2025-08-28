@@ -13,6 +13,12 @@ from urllib.parse import urlparse
 from crawler.utils.exceptions import QueueError
 
 
+from crawler.utils.logging import get_logger
+
+
+logger = get_logger('queue')
+
+
 @dataclass
 class QueuedURL:
     """Represents a URL in the crawling queue."""
@@ -166,8 +172,6 @@ class URLQueue:
             # Check if queue is full
             if self._queue.full():
                 # Log warning but don't crash - skip this URL
-                import logging
-                logger = logging.getLogger(__name__)
                 logger.warning(f"URL queue is full (size: {self.size()}/{self.max_size}), skipping URL: {url[:100]}...")
                 self._stats['urls_skipped_duplicate'] += 1  # Count as skipped
                 return False
@@ -311,8 +315,6 @@ class URLQueue:
             # Check if queue is full
             if self._queue.full():
                 # Log warning but don't crash - this shouldn't happen often
-                import logging
-                logger = logging.getLogger(__name__)
                 logger.warning(f"Cannot put URL back, queue is full: {queued_url.url[:100]}...")
                 return
             
